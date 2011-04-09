@@ -8,6 +8,10 @@ Author: @chimo
 Author URI: http://identi.ca/chimo
 */
 
+// Copyright (c) 2011 - Stephane Berube
+// * Modified authentication mechanism to implement the whole oauth 'dance'
+// * Added identi.ca support
+
 // Copyright (c) 2007-2010 Crowd Favorite, Ltd., Alex King. All rights reserved.
 //
 // Released under the GPL license
@@ -1912,8 +1916,8 @@ function aktt_options_form() {
 						<option value="twitter">Twitter</option>
 						<!-- TODO: <option value="statusnet">Other StatusNet instance</option> -->
 					</select>
-					<label for="host">Host:</label>
-					<input disabled="disabled" id="host" name="host" type="text" />
+					<!-- (not yet) <label for="host">Host:</label>
+					<input disabled="disabled" id="host" name="host" type="text" /> -->
 					<!-- TODO: Ask for consumer key/secret -->
 				</fieldset>
 				<p class="submit">
