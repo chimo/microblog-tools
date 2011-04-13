@@ -1196,6 +1196,46 @@ jQuery(function($) {
 	});
 });
 
+// Chimo Start
+// TODO: Handle cases where JS is disabled (graceful degradation)
+jQuery(function($) {
+	$("#aktt_service").change(function(){
+		var str = "";
+        if($("#aktt_service option:selected").eq(0).attr("value") == "statusnet")
+			$("#statusnet").slideDown();
+		else
+			$("#statusnet").slideUp();
+	});
+});
+
+// FIXME: Duplicate
+// TODO: Handle cases where JS is disabled (graceful degradation)
+jQuery(function($) {
+    $("#host").keyup(function(){
+        var path = "/settings/oauthapps/new?name=Micro-blog%20Tools&description=OAuth-enabled%20WordPress%20plugin%20providing%20complete%20integration%20between%20your%20WordPress%20blog%20and%20your%20Twitter,%20Identi.ca%20or%20StatusNet%20account.%20Based%20on%20Twitter-tools&source_url=https%3a%2f%2fgithub.com%2fchimo%2fmicroblog-tools&homepage=http%3a%2f%2fchimo.chromic.org&organization=Chimo";
+        $("#newapp").attr("href", $("#host").val() + path);
+        $("#newapp").text($("#host").val() + "settings/oauthapps/new");
+    });
+});
+
+// FIXME: Duplicate
+// TODO: Cleanup this messy code
+jQuery(function($) {
+    $("#host").blur(function(){
+        var pattern = /^https?:\/\//i;
+        if(!(pattern.test($("#host").val())))
+            $("#host").val("http://" + $("#host").val());
+
+        if($("#host").val().charAt($("#host").val().length-1) != "/")
+            $("#host").val($("#host").val() + "/");
+
+        var path = "/settings/oauthapps/new?name=Micro-blog%20Tools&description=OAuth-enabled%20WordPress%20plugin%20providing%20complete%20integration%20between%20your%20WordPress%20blog%20and%20your%20Twitter,%20Identi.ca%20or%20StatusNet%20account.%20Based%20on%20Twitter-tools&source_url=https%3a%2f%2fgithub.com%2fchimo%2fmicroblog-tools&homepage=http%3a%2f%2fchimo.chromic.org&organization=Chimo";
+        $("#newapp").attr("href", $("#host").val() + path);
+        $("#newapp").text($("#host").val() + "settings/oauthapps/new");
+    });
+});
+// Chimo End
+
 (function($){
 
 	jQuery.fn.timepicker = function(){
@@ -1531,9 +1571,13 @@ form.aktt p.submit,
 .cf-box .cf-box-content p {
 	font-size: 11px;
 }
-input#host {
+input#host, select#aktt_service, input#consumerKey, input#consumerSecret  {
 	float: none;
 	display: inline;
+}
+#statusnet {
+	display: none;
+	margin-top: 12px;
 }
 
 <?php
@@ -1690,10 +1734,11 @@ function aktt_request_handler() {
 						$aktt->host = 'http://twitter.com/';
 						$aktt->host_api = 'https://api.twitter.com/1/';
 					break;
-					case 'statusnet': // TODO: ask for consumer_app_key[_secret]
-						$aktt->app_consumer_key =  '428d6411664273f3c4242d7b983cd4fe';
-						$aktt->app_consumer_secret = 'f7d274552fa88d0c7d2b62cb519e577e';
-						$aktt->host =  $_POST['host']; // TODO: Ensure the host contains a trailing slash (add it if not)
+					case 'statusnet':
+						$aktt->app_consumer_key =  $_POST['consumerKey']; // TODO: If empty display notice
+						$aktt->app_consumer_secret = $_POST['consumerSecret']; // TODO: If empty display notice
+                        $aktt->host =  $_POST['host'];  // TODO: Ensure the host starts with http[s]:// and ends with a trailing slash (add them if not)
+                                                        // TODO: Instead of guessing, find API root as per http://status.net/wiki/API_discovery#Finding_the_API_root
 						$aktt->host_api = $_POST['host'] . 'api/';
 					break;
 					default:
@@ -1914,11 +1959,33 @@ function aktt_options_form() {
 					<select id="aktt_service" name="aktt_service">
 						<option value="identica">identi.ca</option>
 						<option value="twitter">Twitter</option>
-						<!-- TODO: <option value="statusnet">Other StatusNet instance</option> -->
+						<option value="statusnet">Other StatusNet instance</option>
 					</select>
-					<!-- (not yet) <label for="host">Host:</label>
-					<input disabled="disabled" id="host" name="host" type="text" /> -->
-					<!-- TODO: Ask for consumer key/secret -->
+					<div id="statusnet">
+                        <p>'.__('You will need to register Micro-blog Tools on your StatusNet instance. Here are the steps:','microblog-tools').'</p>
+
+						<div>
+							<label for="host">(Sub-)Domain:</label>
+							<input id="host" name="host" type="text" />
+                        </div>
+
+                        <ol>
+                            <li>Go to <a target="_blank" id="newapp" href="http://example.com/settings/oauthapps/new?name=Micro-blog%20Tools&description=OAuth-enabled%20WordPress%20plugin%20providing%20complete%20integration%20between%20your%20WordPress%20blog%20and%20your%20Twitter,%20Identi.ca%20or%20StatusNet%20account.%20Based%20on%20Twitter-tools&source_url=https%3a%2f%2fgithub.com%2fchimo%2fmicroblog-tools&homepage=http%3a%2f%2fchimo.chromic.org&organization=Chimo">http://example.com/settings/oauthapps/new</a></li>
+                            <li>Change "Default Access" (last option) to "Read-write"</li>
+                            <li>Click "Save"</li>
+                            <li>On the next page, click on the "Micro-blog Tools" link</li>
+                            <li>Enter the "Consumer Key" and "Consumer Secret" values in the boxes below</li>
+                        </ol>
+
+						<div>
+							<label for="consumerKey">Consumer Key:</label>
+							<input id="consumerKey" name="consumerKey" type="text" />
+						</div>
+						<div>
+							<label for="consumerSecret">Consumer Secret:</label>
+							<input id="consumerSecret" name="consumerSecret" type="text" />	
+						</div>
+					</div>
 				</fieldset>
 				<p class="submit">
 					<input type="submit" name="submit" class="button-primary" value="'.__('Connect', 'microblog-tools').'" />
