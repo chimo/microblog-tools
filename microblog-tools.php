@@ -438,7 +438,7 @@ class twitter_tools {
 				}
 				$content .= '</ul>'."\n";
 				if ($this->give_tt_credit == '1') {
-					$content .= '<p class="aktt_credit">'.__('Powered by <a href="http://chimo.chromic.org/microblog-tools">Micro-blog Tools</a>', 'microblog-tools').'</p>';
+					$content .= '<p class="aktt_credit">'.__('Powered by <a href="https://github.com/chimo/microblog-tools">Micro-blog Tools</a>', 'microblog-tools').'</p>';
 				}
 				$post_data = array(
 					'post_content' => $wpdb->escape($content),
@@ -810,7 +810,7 @@ function aktt_sidebar_tweets($limit = null, $form = null) {
 		  $output .= '	<p id="aktt_tweet_posted_msg">'.__('Posting notice...', 'microblog-tools').'</p>';
 	}
 	if ($aktt->give_tt_credit == '1') {
-		$output .= '<p class="aktt_credit">'.__('Powered by <a href="http://chimo.chromic.org/microblog-tools">Micro-blog Tools</a>', 'microblog-tools').'</p>';
+		$output .= '<p class="aktt_credit">'.__('Powered by <a href="https://github.com/chimo/microblog-tools">Micro-blog Tools</a>', 'microblog-tools').'</p>';
 	}
 	$output .= '</div>';
 	print($output);
@@ -1201,10 +1201,12 @@ jQuery(function($) {
 jQuery(function($) {
 	$("#aktt_service").change(function(){
 		var str = "";
-        if($("#aktt_service option:selected").eq(0).attr("value") == "statusnet")
-			$("#statusnet").slideDown();
-		else
-			$("#statusnet").slideUp();
+        if($("#aktt_service option:selected").eq(0).attr("value") == "statusnet") {
+			$("#identicaTwitter").slideUp(400, function(){$("#statusnet").slideDown();});
+		}
+		else {
+			$("#statusnet").slideUp(400, function(){$("#identicaTwitter").slideDown();});
+		}
 	});
 });
 
@@ -1961,6 +1963,11 @@ function aktt_options_form() {
 						<option value="twitter">Twitter</option>
 						<option value="statusnet">Other StatusNet instance</option>
 					</select>
+					<p id="identicaTwitter">
+						After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
+						Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
+						You will then be redirected here where you\'ll be able to change your settings, if desired.
+					</p>
 					<div id="statusnet">
                         <p>'.__('You will need to register Micro-blog Tools on your StatusNet instance. Here are the steps:','microblog-tools').'</p>
 
