@@ -138,6 +138,7 @@ class twitter_tools {
 			, 'author_url'
 			, 'request_url'
 			, 'access_url'
+			, 'textlimit'
 
 		);
 		$this->twitter_username = '';
@@ -166,15 +167,6 @@ class twitter_tools {
 		$this->app_consumer_secret = '';
 		$this->oauth_token = '';
 		$this->oauth_token_secret ='';
-		// not included in options
-		$this->update_hash = '';
-		$this->tweet_format = $this->tweet_prefix.': %s %s';
-		$this->last_digest_post = '';
-		$this->last_tweet_download = '';
-		$this->doing_tweet_download = '0';
-		$this->doing_digest_post = '0';
-		$this->oauth_hash = '';
-		$this->version = AKTT_VERSION;
 		// Chimo start
 		$this->service = '';
 		$this->host = '';
@@ -189,7 +181,17 @@ class twitter_tools {
 		$this->author_url = '';
 		$this->request_url = '';
 		$this->access_url = '';
+		$this->textlimit = '140';
 		// Chimo end
+		// not included in options
+		$this->update_hash = '';
+		$this->tweet_format = $this->tweet_prefix.': %s %s';
+		$this->last_digest_post = '';
+		$this->last_tweet_download = '';
+		$this->doing_tweet_download = '0';
+		$this->doing_digest_post = '0';
+		$this->oauth_hash = '';
+		$this->version = AKTT_VERSION;
 	}
 	
 	function upgrade() {
@@ -911,14 +913,14 @@ function aktt_tweet_form($type = 'input', $extra = '') {
 		switch ($type) {
 			case 'input':
 				$output .= '
-		<p><input type="text" size="20" maxlength="140" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();" /></p>
+		<p><input type="text" size="20" maxlength="' . get_option('aktt_textlimit') . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();" /></p>
 		<input type="hidden" name="ak_action" value="aktt_post_tweet_sidebar" />
 		<script type="text/javascript">
 		//<![CDATA[
 		function akttCharCount() {
 			var count = document.getElementById("aktt_tweet_text").value.length;
 			if (count > 0) {
-				document.getElementById("aktt_char_count").innerHTML = 140 - count;
+				document.getElementById("aktt_char_count").innerHTML = ' . get_option('aktt_textlimit') . ' - count;
 			}
 			else {
 				document.getElementById("aktt_char_count").innerHTML = "";
@@ -932,14 +934,14 @@ function aktt_tweet_form($type = 'input', $extra = '') {
 				break;
 			case 'textarea':
 				$output .= '
-		<p><textarea type="text" cols="60" rows="5" maxlength="140" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();"></textarea></p>
+		<p><textarea type="text" cols="60" rows="5" maxlength="' . get_option('aktt_textlimit') . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();"></textarea></p>
 		<input type="hidden" name="ak_action" value="aktt_post_tweet_admin" />
 		<script type="text/javascript">
 		//<![CDATA[
 		function akttCharCount() {
 			var count = document.getElementById("aktt_tweet_text").value.length;
 			if (count > 0) {
-				document.getElementById("aktt_char_count").innerHTML = (140 - count) + "'.__(' characters remaining', 'microblog-tools').'";
+				document.getElementById("aktt_char_count").innerHTML = (' . get_option('aktt_textlimit') . ' - count) + "'.__(' characters remaining', 'microblog-tools').'";
 			}
 			else {
 				document.getElementById("aktt_char_count").innerHTML = "";
@@ -1728,20 +1730,26 @@ function aktt_request_handler() {
 						$aktt->app_consumer_key =  '428d6411664273f3c4242d7b983cd4fe';
 						$aktt->app_consumer_secret = 'f7d274552fa88d0c7d2b62cb519e577e';
 						$aktt->host = 'https://identi.ca/';
-						$aktt->host_api = 'https://identi.ca/api/';
+						$aktt->host_api = 'https://identi.ca/api/'; // TODO: Use StatusNet::getAPIroot (futureproof?)
+						$aktt->textlimit = '140'; // TODO: Use StatusNet::getConfigs (futureproof?)
 					break;
 					case 'twitter':
 						$aktt->app_consumer_key =  'Rj3E8KqOu53FdDtxwMyaw';
 						$aktt->app_consumer_secret = '7SyOGGCJV4JQRNI0spsGVoCQ78tZSyYdUXu1lSsvWjM';
 						$aktt->host = 'http://twitter.com/';
 						$aktt->host_api = 'https://api.twitter.com/1/';
+						$aktt->textlimit = '140';
 					break;
 					case 'statusnet':
+						require_once('statusnet-utils.php');
 						$aktt->app_consumer_key =  $_POST['consumerKey']; // TODO: If empty display notice
 						$aktt->app_consumer_secret = $_POST['consumerSecret']; // TODO: If empty display notice
-                        $aktt->host =  $_POST['host'];  // TODO: Ensure the host starts with http[s]:// and ends with a trailing slash (add them if not)
-                                                        // TODO: Instead of guessing, find API root as per http://status.net/wiki/API_discovery#Finding_the_API_root
-						$aktt->host_api = $_POST['host'] . 'api/';
+                        $aktt->host =  $_POST['host'];  // TODO: Ensure the host starts with http[s]://
+						$aktt->host_api = StatusNet::getAPIroot($_POST['host']); // TODO: error checking
+						
+						foreach(StatusNet::getConfigs($aktt->host_api) as $key => $config) // TODO: error checking
+							$aktt->$key = $config;
+							
 					break;
 					default:
 						// TODO: Throw error msg
