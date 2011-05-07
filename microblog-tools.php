@@ -1204,10 +1204,14 @@ jQuery(function($) {
 	$("#aktt_service").change(function(){
 		var str = "";
         if($("#aktt_service option:selected").eq(0).attr("value") == "statusnet") {
-			$("#identicaTwitter").slideUp(400, function(){$("#statusnet").slideDown();});
+			// $("#identicaTwitter").slideUp(400, function(){$("#statusnet").slideDown();});
+            $("#identicaTwitter").hide();
+            $("#statusnet").show();
 		}
 		else {
-			$("#statusnet").slideUp(400, function(){$("#identicaTwitter").slideDown();});
+			// $("#statusnet").slideUp(400, function(){$("#identicaTwitter").slideDown();});
+            $("#statusnet").hide();
+            $("#identicaTwitter").show();
 		}
 	});
 });
@@ -2090,10 +2094,10 @@ function aktt_options_form() {
                                 <td><input style="width: 25em;" id="app_consumer_secret" name="app_consumer_secret" aria-required="true" type="text" value="'. htmlspecialchars($_GET['app_consumer_secret'], ENT_QUOTES) . '" /></td>
                             </tr>
                         </tbody>
-                        <tbody>
+                        <tbody id="identicaTwitter" '); if($_GET['service'] == 'statusnet') { print('style="display: none;"'); } print('>
                             <tr>
                                 <td colspan="2">
-                                    <p id="identicaTwitter" '); if($_GET['service'] == 'statusnet') { print('style="display: none;"'); } print('>
+                                    <p>
                                         After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
                                         Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
                                         You will then be redirected here where you\'ll be able to change your settings, if desired.
