@@ -1238,6 +1238,26 @@ jQuery(function($) {
         $("#newapp").text($("#host").val() + "settings/oauthapps/new");
     });
 });
+
+// JS Form Validation
+jQuery(function($) {
+    $("#ak_twittertools").submit(function() {
+        var err = false;
+        $("#ak_twittertools input[aria-required=\"true\"]").each(function() {
+            if($(this).val() == "") {
+                $(this).parent().parent().addClass("form-invalid");
+                err = true;
+            }
+            else {
+                $(this).parent().parent().removeClass("form-invalid");
+            }
+        });
+        if(!err)
+            $(this).submit();
+        else
+            return false;
+    });
+});
 // Chimo End
 
 (function($){
@@ -1580,7 +1600,6 @@ input#host, select#aktt_service, input#app_consumer_key, input#app_consumer_secr
 	display: inline;
 }
 #statusnet {
-	/* display: none; */
 	margin-top: 12px;
 }
 
@@ -1993,13 +2012,13 @@ function aktt_options_form() {
 	}
 	
 	$err = ''; // TODO: Create JS PE for these three
-	if(!empty($_GET['err_app_consumer_key'])) {
+	if(!empty($_GET['err_host'])) {
 		$err = '<li><strong>Error:</strong> Domain field cannot be blank</li>';
 	}	
-	if(!empty($_GET['err_app_consumer_secret'])) {
+	if(!empty($_GET['err_app_consumer_key'])) {
 		$err .= '<li><strong>Error:</strong> Consumer Key field cannot be blank</li>';
 	}
-	if(!empty($_GET['err_host'])) {
+	if(!empty($_GET['err_app_consumer_secret'])) {
 		$err .= '<li><strong>Error:</strong> Consumer Secret field cannot be blank</li>';
 	}
 	
@@ -2030,44 +2049,59 @@ function aktt_options_form() {
 	if ( !aktt_oauth_test() ) {
 		print('	
 			<h3>'.__('Connect to your Micro-blog instance','microblog-tools').'</h3>
-			<form id="ak_twittertools" name="ak_twittertools" action="'.admin_url('options-general.php').'" method="post">
-				<fieldset class="options">
-					<label for="aktt_service">Service:</label>
-					<select id="aktt_service" name="aktt_service">
-						<option value="identica">identi.ca</option>
-						<option value="twitter">Twitter</option>
-						<option value="statusnet" '); if($_GET['service'] == 'statusnet') { print('selected="selected"'); } print('>Other StatusNet instance</option>
-					</select>
-					<div id="statusnet" '); if($_GET['service'] != 'statusnet') { print('style="display: none;"'); } print('>
-                        <p>'.__('You will need to register Micro-blog Tools on your StatusNet instance. Here are the steps:','microblog-tools').'</p>
-
-						<div>
-							<label for="host">(Sub-)Domain:</label>
-							<input id="host" name="host" type="text" value="' . htmlspecialchars($_GET['host'], ENT_QUOTES) . '" />
-                        </div>
-
-                        <ol>
-                            <li>Go to <a target="_blank" id="newapp" href="http://example.com/settings/oauthapps/new?name=Micro-blog%20Tools&description=OAuth-enabled%20WordPress%20plugin%20providing%20complete%20integration%20between%20your%20WordPress%20blog%20and%20your%20Twitter,%20Identi.ca%20or%20StatusNet%20account.%20Based%20on%20Twitter-tools&source_url=https%3a%2f%2fgithub.com%2fchimo%2fmicroblog-tools&homepage=http%3a%2f%2fchimo.chromic.org&organization=Chimo">http://example.com/settings/oauthapps/new</a></li>
-                            <li>Change "Default Access" (last option) to "Read-write"</li>
-                            <li>Click "Save"</li>
-                            <li>On the next page, click on the "Micro-blog Tools" link</li>
-                            <li>Enter the "Consumer Key" and "Consumer Secret" values in the boxes below</li>
-                        </ol>
-
-						<div>
-							<label for="app_consumer_key">Consumer Key:</label>
-							<input id="app_consumer_key" name="app_consumer_key" type="text" value="' . htmlspecialchars($_GET['app_consumer_key'], ENT_QUOTES) . '" />
-						</div>
-						<div>
-							<label for="app_consumer_secret">Consumer Secret:</label>
-							<input id="app_consumer_secret" name="app_consumer_secret" type="text" value="'. htmlspecialchars($_GET['app_consumer_secret'], ENT_QUOTES) . '" />	
-						</div>
-					</div>
-					<p id="identicaTwitter" '); if($_GET['service'] == 'statusnet') { print('style="display: none;"'); } print('>
-						After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
-						Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
-						You will then be redirected here where you\'ll be able to change your settings, if desired.
-					</p>
+            <form id="ak_twittertools" name="ak_twittertools" action="'.admin_url('options-general.php').'" method="post">
+                <fieldset class="options">
+                    <table class="form-table">
+                        <tbody>
+                            <tr class="form-field form-required">
+                                <th scope="row"><label for="aktt_service">Service: <span class="description">(required)</span></label></th>
+                                <td>
+                                    <select id="aktt_service" name="aktt_service" aria-required="true">
+                                        <option value="identica">identi.ca</option>
+                                        <option value="twitter">Twitter</option>
+                                        <option value="statusnet" '); if($_GET['service'] == 'statusnet') { print('selected="selected"'); } print('>Other StatusNet instance</option>
+                                    </select>                    
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tbody id="statusnet" '); if($_GET['service'] != 'statusnet') { print('style="display: none;"'); } print('>
+                            <tr class="form-field form-required">
+                                <th scope="row"><label for="host">URL of your StatusNet front page <span class="description">(required)</span></label></th>
+                                <td><input style="width: 25em;" id="host" name="host" type="text" aria-required="true" value="' . htmlspecialchars($_GET['host'], ENT_QUOTES) . '" /></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <p>'.__('You will need to register Micro-blog Tools on your StatusNet instance. Here are the steps:','microblog-tools').'</p>
+                                    <ol>
+                                        <li>Go to <a target="_blank" id="newapp" href="http://example.com/settings/oauthapps/new?name=Micro-blog%20Tools&description=OAuth-enabled%20WordPress%20plugin%20providing%20complete%20integration%20between%20your%20WordPress%20blog%20and%20your%20Twitter,%20Identi.ca%20or%20StatusNet%20account.%20Based%20on%20Twitter-tools&source_url=https%3a%2f%2fgithub.com%2fchimo%2fmicroblog-tools&homepage=http%3a%2f%2fchimo.chromic.org&organization=Chimo">http://example.com/settings/oauthapps/new</a></li>
+                                        <li>Change "Default Access" (last option) to "Read-write"</li>
+                                        <li>Click "Save"</li>
+                                        <li>On the next page, click on the "Micro-blog Tools" link</li>
+                                        <li>Enter the "Consumer Key" and "Consumer Secret" values in the boxes below</li>
+                                    </ol>                        
+                                </td>
+                            </tr>
+                            <tr class="form-field form-required">
+                                <th scope="row"><label for="app_consumer_key">Consumer Key <span class="description">(required)</span></label></th>
+                                <td><input style="width: 25em;" id="app_consumer_key" name="app_consumer_key" type="text" aria-required="true" value="' . htmlspecialchars($_GET['app_consumer_key'], ENT_QUOTES) . '" /></td>
+                            </tr>
+                            <tr class="form-field form-required">
+                                <th scope="row"><label for="app_consumer_secret">Consumer Secret <span class="description">(required)</span></label></th>
+                                <td><input style="width: 25em;" id="app_consumer_secret" name="app_consumer_secret" aria-required="true" type="text" value="'. htmlspecialchars($_GET['app_consumer_secret'], ENT_QUOTES) . '" /></td>
+                            </tr>
+                        </tbody>
+                        <tbody>
+                            <tr>
+                                <td colspan="2">
+                                    <p id="identicaTwitter" '); if($_GET['service'] == 'statusnet') { print('style="display: none;"'); } print('>
+                                        After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
+                                        Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
+                                        You will then be redirected here where you\'ll be able to change your settings, if desired.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
 				</fieldset>
 				<p class="submit">
 					<input type="submit" name="submit" class="button-primary" value="'.__('Connect', 'microblog-tools').'" />
@@ -2075,8 +2109,7 @@ function aktt_options_form() {
 				<input type="hidden" name="ak_action" value="aktt_oauth_test" class="hidden" style="display: none;" />
 				'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
 			</form>
-				
-				');
+        ');
 	}
 	else if ( aktt_oauth_test() ) {
 		print('	
