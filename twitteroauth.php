@@ -1,5 +1,7 @@
 <?php
 
+// Minor tweaks by chimo@chromic.org (http://chimo.chromic.org/microblog-tools)
+
 /*
  * Abraham Williams (abraham@abrah.am) http://abrah.am
  *

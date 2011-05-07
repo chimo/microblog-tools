@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (c) 2011 - Stephane Berube
+// Copyright (c) 2011 - Stephane Berube (chimo@chromic.org) http://github.com/chimo/microblog-tools
 // Quick and dirty StatusNet utility functions
 //
 // Released under the GPL license
@@ -24,12 +24,13 @@
 		public static function getAPIroot($host) {
 			// Find the URI to rsd.xml
 			$dom = new DOMDocument();
-			@$dom->loadHtmlFile($host); 
+			@$dom->loadHtmlFile($host); // TODO: ensure $host starts with http[s]://
+                                        // TODO: ensure we are getting the index page of the site, not some other random page
 			$xpath = new DOMXPath($dom);
 			$rsd = $xpath->query('/html/head/link[@rel="EditURI"]/@href');
 
 			if(!$rsd || $rsd->length == 0)
-				exit("XPath: Can't find rsd");
+				return false;
 			
 			// Get the rsd.xml file
 			$ch = curl_init($rsd->item(0)->nodeValue);
@@ -38,7 +39,7 @@
 			curl_close($ch);
 
 			if(!$xml) 
-				exit("Curl: Can't get rsd.xml");
+				return false;
 			
 			// Get the API root
 			$dom = new DOMDocument();
@@ -61,7 +62,7 @@
 			curl_close($ch);
 
 			if(!$xml) 
-				exit("Curl: Can't get config.xml");
+				return false;
 			
 			// Get the API root
 			$dom = new DOMDocument();

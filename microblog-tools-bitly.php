@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Micro-blog Tools - Bit.ly URLs 
-Plugin URI: http://chimo.chromic.org/microblog-tools
+Plugin URI: http://github.com/chimo/microblog-tools
 Description: Use Bit.ly for URL shortening with Micro-blog Tools. This plugin relies on Micro-blog Tools, configure it on the Micro-blog Tools settings page.
 Version: 0.1
 Author: @chimo

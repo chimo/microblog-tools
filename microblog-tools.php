@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Micro-blog Tools
-Plugin URI: http://chimo.chromic.org/microblog-tools
+Plugin URI: http://github.com/chimo/microblog-tools
 Description: A complete integration between your WordPress blog and <a href="http://status.net">Status.net</a> micro-blog instances (such as <a href="http://identi.ca">Identi.ca</a>) or <a href="http://twitter.com">Twitter</a>. Bring your notices into your blog and pass your blog posts to Status.net. Show your notices in your sidebar, and post notices from your WordPress admin. Based on <a href="http://crowdfavorite.com">Crowd Favorite</a>'s <a href="http://crowdfavorite.com/wordpress/plugins/twitter-tools/">Twitter Tools</a>.
 Version: 0.1
 Author: @chimo
@@ -1048,7 +1048,7 @@ function aktt_init() {
 		if ($installed_version != AKTT_VERSION) {
 			$update = true;
 		}
-		if (!empty($installed_version) && version_compare($installed_version, '2.4', '<') && !aktt_oauth_test()) { // NOTE: This doesn't apply to StatusNet (yet?)
+		if (!empty($installed_version) && version_compare($installed_version, '2.4', '<') && !aktt_oauth_test()) { // TODO: re-enable this check if the configured account is Twitter
 			// add_action('admin_notices', create_function( '', "echo '<div class=\"error\"><p>".sprintf(__('Twitter recently changed how it authenticates its users, you will need you to update your <a href="%s">Twitter Tools settings</a>. We apologize for any inconvenience these new authentication steps may cause.', 'twitter-tools'), admin_url('options-general.php?page=twitter-tools.php'))."</p></div>';" ) );
 		}
 		else if ($update) {
@@ -1575,12 +1575,12 @@ form.aktt p.submit,
 .cf-box .cf-box-content p {
 	font-size: 11px;
 }
-input#host, select#aktt_service, input#consumerKey, input#consumerSecret  {
+input#host, select#aktt_service, input#app_consumer_key, input#app_consumer_secret  {
 	float: none;
 	display: inline;
 }
 #statusnet {
-	display: none;
+	/* display: none; */
 	margin-top: 12px;
 }
 
@@ -1625,7 +1625,7 @@ function aktt_request_handler() {
 				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&tweets-updated=true'));
 				die();
 				break;
-			// Chimo: added starts
+			// Chimo start
 			case 'reqTok_success':
 			    require_once('twitteroauth.php');
 				$connection = new TwitterOAuth(
@@ -1636,28 +1636,37 @@ function aktt_request_handler() {
 					get_option('ch_req_token_secret')
 				);
 				
-				// Get access token
-				$ch_tok = $connection->getAccessToken($aktt->access_url, $_GET['oauth_verifier']); // TODO: Error check
+				// Get Access Token
+				$ch_tok = $connection->getAccessToken($aktt->access_url, $_GET['oauth_verifier']);
+				if(empty($ch_tok)) {
+					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&errAccTok=true'));
+					exit;
+				}
+				
+				// Save the Access Token
 				update_option('aktt_oauth_token', $ch_tok['oauth_token']);
 				update_option('aktt_oauth_token_secret', $ch_tok['oauth_token_secret']);
 				$aktt->oauth_token = $ch_tok['oauth_token'];
 				$aktt->oauth_token_secret = $ch_tok['oauth_token_secret'];
-					
-				if($connection = aktt_oauth_connection()) { // TODO: Error check
-					$data = $connection->get('account/verify_credentials');
-					if ($connection->http_code == '200') {
-						$data = json_decode($data);
-						update_option('aktt_twitter_username', stripslashes($data->screen_name));
-						$oauth_hash = aktt_oauth_credentials_to_hash();
-						update_option('aktt_oauth_hash', $oauth_hash);
-						delete_option('ch_req_token');
-						delete_option('ch_req_token_secret');
-						// $message = 'success'; // This isn't used anymore, but we should indicate that the connection was a success somewhere, somehow
-					}
+				
+				// Test the Access Token
+				$connection = aktt_oauth_connection();
+				$data = $connection->get('account/verify_credentials');
+				if ($connection->http_code == '200') {
+					$data = json_decode($data);
+					update_option('aktt_twitter_username', stripslashes($data->screen_name));
+					$oauth_hash = aktt_oauth_credentials_to_hash();
+					update_option('aktt_oauth_hash', $oauth_hash);
+					delete_option('ch_req_token');
+					delete_option('ch_req_token_secret');
+					// $message = 'success'; // This isn't used anymore, but we should indicate that the connection was a success somewhere, somehow
 				}
-
+				else {
+					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&errActCred=true'));
+					exit;
+				}
 				break;
-			// Chimo: added ends
+			// Chimo end
 			case 'aktt_reset_tweet_checking':
 				if (!wp_verify_nonce($_GET['_wpnonce'], 'aktt_update_tweets')) {
 					wp_die('Oops, please try again.');
@@ -1711,6 +1720,7 @@ function aktt_request_handler() {
 					$tweet->tw_text = stripslashes($_POST['aktt_tweet_text']);
 					if ($aktt->do_tweet($tweet)) {
 						wp_redirect(admin_url('post-new.php?page=microblog-tools.php&tweet-posted=true'));
+						exit;
 					}
 					else {
 						wp_die(__('Oops, your notice was not posted. Please check your blog is connected to your Micro-blog instance and that it is up and running happily.', 'microblog-tools'));
@@ -1724,32 +1734,55 @@ function aktt_request_handler() {
 				}
 				$auth_test = false; // ?
 
-				// Chimo changes start
+				// Chimo start
 				switch($_POST['aktt_service']) {
 					case 'identica':
-						$aktt->app_consumer_key =  '428d6411664273f3c4242d7b983cd4fe';
+						$aktt->app_consumer_key = '428d6411664273f3c4242d7b983cd4fe';
 						$aktt->app_consumer_secret = 'f7d274552fa88d0c7d2b62cb519e577e';
 						$aktt->host = 'https://identi.ca/';
 						$aktt->host_api = 'https://identi.ca/api/'; // TODO: Use StatusNet::getAPIroot (futureproof?)
 						$aktt->textlimit = '140'; // TODO: Use StatusNet::getConfigs (futureproof?)
 					break;
 					case 'twitter':
-						$aktt->app_consumer_key =  'Rj3E8KqOu53FdDtxwMyaw';
+						$aktt->app_consumer_key = 'Rj3E8KqOu53FdDtxwMyaw';
 						$aktt->app_consumer_secret = '7SyOGGCJV4JQRNI0spsGVoCQ78tZSyYdUXu1lSsvWjM';
 						$aktt->host = 'http://twitter.com/';
 						$aktt->host_api = 'https://api.twitter.com/1/';
 						$aktt->textlimit = '140';
 					break;
 					case 'statusnet':
+                        // Ensure all required fields have a value
+                        foreach(Array('app_consumer_key','app_consumer_secret','host') as $reqField) {
+                            if(empty($_POST[$reqField]))
+                                $err .= "&err_$reqField=true";
+                            else {
+                                $aktt->$reqField =  $_POST[$reqField]; // This is escaped with $wpdb->escape via update_option() later on
+                                $val .= "&$reqField=" . urlencode($_POST[$reqField]);
+                            }
+                        }
+
+                        // If one or more required fields are not filled out, reload the page with an error message and provided form data
+						if($err != '') {
+							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet' . $err . $val));
+							exit;
+						}
+
+                        // Get the API root from the host
 						require_once('statusnet-utils.php');
-						$aktt->app_consumer_key =  $_POST['consumerKey']; // TODO: If empty display notice
-						$aktt->app_consumer_secret = $_POST['consumerSecret']; // TODO: If empty display notice
-                        $aktt->host =  $_POST['host'];  // TODO: Ensure the host starts with http[s]://
-						$aktt->host_api = StatusNet::getAPIroot($_POST['host']); // TODO: error checking
+						if(!($aktt->host_api = StatusNet::getAPIroot($_POST['host']))) {
+							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errAPIroot=true' . $val));
+							exit;
+						}
 						
-						foreach(StatusNet::getConfigs($aktt->host_api) as $key => $config) // TODO: error checking
+                        // Get the server configs from the statusnet server
+						if(!($configs = StatusNet::getConfigs($aktt->host_api))) {
+							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errConfigs=true' . $val));
+							exit;
+						}
+
+                        // Save configs from statusnet server in object
+						foreach($configs as $key => $config)
 							$aktt->$key = $config;
-							
 					break;
 					default:
 						// TODO: Throw error msg
@@ -1780,17 +1813,19 @@ function aktt_request_handler() {
 					$aktt->access_url = 'https://api.twitter.com/oauth/access_token';
 				}
 				
-				$aktt->populate_settings();		// foreach aktt[option] set option to POST value
-				$aktt->update_settings();		// foreach aktt[option] update db values with aktt[option] values
+				$aktt->populate_settings();
+				$aktt->update_settings();
 				
-				if ($connection = aktt_oauth_connection()) {
-					$ch_tok = $connection->getRequestToken($aktt->request_url, admin_url('options-general.php?page=microblog-tools.php&ak_action=reqTok_success'));  // TODO: Error check
-					update_option('ch_req_token', $ch_tok['oauth_token']);
-					update_option('ch_req_token_secret', $ch_tok['oauth_token_secret']);
-					wp_redirect($connection->getAuthorizeURL($aktt->author_url, $ch_tok['oauth_token'], FALSE));
-				} 
-				// Chimo changes end
-
+				$connection = aktt_oauth_connection();
+				$ch_tok = $connection->getRequestToken($aktt->request_url, admin_url('options-general.php?page=microblog-tools.php&ak_action=reqTok_success'));
+				if(empty($ch_tok)) {
+					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errReqTok=true'));
+				}
+				update_option('ch_req_token', $ch_tok['oauth_token']);
+				update_option('ch_req_token_secret', $ch_tok['oauth_token_secret']);
+				wp_redirect($connection->getAuthorizeURL($aktt->author_url, $ch_tok['oauth_token'], FALSE));
+				exit;
+				// Chimo end
 			break;
 			case 'aktt_twitter_disconnect':
 				if (!wp_verify_nonce($_POST['_wpnonce'], 'aktt_twitter_disconnect')) {
@@ -1802,6 +1837,7 @@ function aktt_request_handler() {
 				update_option('aktt_oauth_token', '');
 				update_option('aktt_oauth_token_secret', '');
 				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&updated=true'));
+				exit;
 			break;
 		}
 	}
@@ -1956,6 +1992,37 @@ function aktt_options_form() {
 		');
 	}
 	
+	$err = ''; // TODO: Create JS PE for these three
+	if(!empty($_GET['err_app_consumer_key'])) {
+		$err = '<li><strong>Error:</strong> Domain field cannot be blank</li>';
+	}	
+	if(!empty($_GET['err_app_consumer_secret'])) {
+		$err .= '<li><strong>Error:</strong> Consumer Key field cannot be blank</li>';
+	}
+	if(!empty($_GET['err_host'])) {
+		$err .= '<li><strong>Error:</strong> Consumer Secret field cannot be blank</li>';
+	}
+	
+	// TODO: Test these and offer suggestions to user
+	if(!empty($_GET['errReqTok'])) {
+		$err .= '<li><strong>Error:</strong> Failed to retrieve Request Token</li>';
+	}
+	if(!empty($_GET['errAccTok'])) {
+		$err .= '<li><strong>Error:</strong> Failed to retrieve Access Token</li>';
+	}
+	if(!empty($_GET['errActCred'])) {
+		$err .= '<li><strong>Error:</strong> Retrived Access Token but credential check failed</li>';
+	}	
+	
+	if($err != '') {
+		$err = '<ul>' . $err . '</ul>';
+		print('
+			<div class="error">
+				<p>' . $err . '</p>
+			</div>
+		');
+	}
+
 	print('	
 			<div class="wrap" id="aktt_options_page">
 			<h2>'.__('Micro-blog Tools Options', 'microblog-tools').' &nbsp; <script type="text/javascript">var WPHC_AFF_ID = "14303"; var WPHC_POSITION = "c1"; var WPHC_PRODUCT = "Micro-blog Tools ('.AKTT_VERSION.')"; var WPHC_WP_VERSION = "'.$wp_version.'";</script><script type="text/javascript" src="http://cloud.wphelpcenter.com/support-form/0001/deliver-a.js"></script></h2>'
@@ -1969,19 +2036,14 @@ function aktt_options_form() {
 					<select id="aktt_service" name="aktt_service">
 						<option value="identica">identi.ca</option>
 						<option value="twitter">Twitter</option>
-						<option value="statusnet">Other StatusNet instance</option>
+						<option value="statusnet" '); if($_GET['service'] == 'statusnet') { print('selected="selected"'); } print('>Other StatusNet instance</option>
 					</select>
-					<p id="identicaTwitter">
-						After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
-						Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
-						You will then be redirected here where you\'ll be able to change your settings, if desired.
-					</p>
-					<div id="statusnet">
+					<div id="statusnet" '); if($_GET['service'] != 'statusnet') { print('style="display: none;"'); } print('>
                         <p>'.__('You will need to register Micro-blog Tools on your StatusNet instance. Here are the steps:','microblog-tools').'</p>
 
 						<div>
 							<label for="host">(Sub-)Domain:</label>
-							<input id="host" name="host" type="text" />
+							<input id="host" name="host" type="text" value="' . htmlspecialchars($_GET['host'], ENT_QUOTES) . '" />
                         </div>
 
                         <ol>
@@ -1993,14 +2055,19 @@ function aktt_options_form() {
                         </ol>
 
 						<div>
-							<label for="consumerKey">Consumer Key:</label>
-							<input id="consumerKey" name="consumerKey" type="text" />
+							<label for="app_consumer_key">Consumer Key:</label>
+							<input id="app_consumer_key" name="app_consumer_key" type="text" value="' . htmlspecialchars($_GET['app_consumer_key'], ENT_QUOTES) . '" />
 						</div>
 						<div>
-							<label for="consumerSecret">Consumer Secret:</label>
-							<input id="consumerSecret" name="consumerSecret" type="text" />	
+							<label for="app_consumer_secret">Consumer Secret:</label>
+							<input id="app_consumer_secret" name="app_consumer_secret" type="text" value="'. htmlspecialchars($_GET['app_consumer_secret'], ENT_QUOTES) . '" />	
 						</div>
 					</div>
+					<p id="identicaTwitter" '); if($_GET['service'] == 'statusnet') { print('style="display: none;"'); } print('>
+						After clicking the "Connect" button, you will be redirected to your micro-blog provider.<br />
+						Simply click "Allow" to connect Micro-blog Tools to your micro-blog.<br />
+						You will then be redirected here where you\'ll be able to change your settings, if desired.
+					</p>
 				</fieldset>
 				<p class="submit">
 					<input type="submit" name="submit" class="button-primary" value="'.__('Connect', 'microblog-tools').'" />

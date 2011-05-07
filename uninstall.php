@@ -1,5 +1,5 @@
 <?php
-// Copyright (c) 2011 - Stephane Berube 
+// Copyright (c) 2011 - Stephane Berube (chimo@chromic.org) http://github.com/chimo/microblog-tools
 // Quick fix to clean-up the database when uninstalling the plugin.
 // FIXME: It would be nice not to have to duplicate twitter-tools.php's $aktt->options array
 
@@ -63,6 +63,7 @@ function aktt_uninstall() {
 		, 'author_url'
 		, 'request_url'
 		, 'access_url'
+		, 'textlimit'		
 		, 'installed_version' /* Starting here, these options aren't in the twitter-tools.php $aktt->options array */
 		, 'next_daily_digest'
 		, 'next_weekly_digest'
@@ -73,6 +74,7 @@ function aktt_uninstall() {
 	foreach ($options as $option) {
 		delete_option('aktt_'.$option);
 	}
+	
 }
 
 aktt_uninstall();

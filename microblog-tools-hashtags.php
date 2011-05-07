@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Micro-blog Tools - Hashtags 
-Plugin URI: http://chimo.chromic.org/microblog-tools
+Plugin URI: http://github.com/chimo/microblog-tools
 Description: Set #hashtags for blog post notices sent by Micro-blog Tools. This plugin relies on Micro-blog Tools, configure it on the Micro-blog Tools settings page.
 Version: 0.1
 Author: @chimo
