@@ -13,70 +13,76 @@
 // **********************************************************************
 
 /* TODO
- * Error handling (!)
  * libxml_use_internal_errors(), libxml_clear_errors() -- ?
- * Make more robust/flexible
- * etc.
 */
 
-	class StatusNet {
+class StatusNet {
 
-		public static function getAPIroot($host) {
-			// Find the URI to rsd.xml
-			$dom = new DOMDocument();
-			@$dom->loadHtmlFile($host); // TODO: ensure $host starts with http[s]://
-                                        // TODO: ensure we are getting the index page of the site, not some other random page
-			$xpath = new DOMXPath($dom);
-			$rsd = $xpath->query('/html/head/link[@rel="EditURI"]/@href');
+    public static function getIndexPage($uri) {
+        // Ensure $uri starts with http[s]://
+        if (strrpos($uri, 'https://') !== 0 && strrpos($uri, 'http://') !== 0) {
+            $uri = "http://$uri";
+        }
+       
+        //  Returns DOMDocument or false on failure
+        return @DOMDocument::loadHtmlFile($uri);
+    }
 
-			if(!$rsd || $rsd->length == 0)
-				return false;
-			
-			// Get the rsd.xml file
-			$ch = curl_init($rsd->item(0)->nodeValue);
-			curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1) ;
-			$xml = curl_exec($ch);
-			curl_close($ch);
+    public static function getRSDpath($dom) {
+        $xpath = new DOMXPath($dom);
+        $rsd = $xpath->query('/html/head/link[@rel="EditURI"]/@href');
 
-			if(!$xml) 
-				return false;
-			
-			// Get the API root
-			$dom = new DOMDocument();
-			@$dom->loadXML($xml); 
-			$xpath = new DOMXPath($dom);
-			$xpath->registerNamespace('r', 'http://archipelago.phrasewise.com/rsd');
-			$apiRoot = $xpath->query('/r:rsd/r:service/r:apis/r:api[@name="Twitter"]/@apiLink');
-			
-			if(!$apiRoot || $apiRoot->length == 0)
-				return false;
-			
-			return $apiRoot->item(0)->nodeValue;
-		}
-		
-		public static function getConfigs($apiURI) {
-			// Get the config.xml file
-			$ch = curl_init($apiURI . "statusnet/config.xml");
-			curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1) ;
-			$xml = curl_exec($ch);
-			curl_close($ch);
+        if(!$rsd || $rsd->length == 0)
+            return false;
 
-			if(!$xml) 
-				return false;
-			
-			// Get the API root
-			$dom = new DOMDocument();
-			@$dom->loadXML($xml); 
-			$xpath = new DOMXPath($dom);
-			$textlimit = $xpath->query('/config/site/textlimit');
+        return $rsd->item(0)->nodeValue;
+    }
+    
+    public static function getRSD($uri) {
+        $ch = curl_init($uri);
+        curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1) ;
+        $xml = curl_exec($ch);
+        curl_close($ch);
 
-			if(!$textlimit || $textlimit->length == 0)
-				exit("XPath: Can't find textlimit");
-				
-			$configs = array("textlimit" => $textlimit->item(0)->nodeValue);
-			
-			return $configs;
-		}
-	}
+        return $xml;
+    }
+    
+    public static function getAPIpath($xml) {
+        $dom = new DOMDocument();
+        @$dom->loadXML($xml);
+        $xpath = new DOMXPath($dom);
+        $xpath->registerNamespace('r', 'http://archipelago.phrasewise.com/rsd');
+        $apiRoot = $xpath->query('/r:rsd/r:service/r:apis/r:api[@name="Twitter"]/@apiLink');
+        
+        if(!$apiRoot || $apiRoot->length == 0)
+            return false;
+        
+        return $apiRoot->item(0)->nodeValue;        
+    }
+    
+    public static function getConfigs($apiURI) {
+        // Get the config.xml file
+        $ch = curl_init($apiURI . "statusnet/config.xml");
+        curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1) ;
+        $xml = curl_exec($ch);
+        curl_close($ch);
+
+        if(!$xml) 
+            return false;
+        
+        // Get the API root
+        $dom = new DOMDocument();
+        @$dom->loadXML($xml); 
+        $xpath = new DOMXPath($dom);
+        $textlimit = $xpath->query('/config/site/textlimit');
+
+        if(!$textlimit || $textlimit->length == 0)
+            exit("XPath: Can't find textlimit");
+            
+        $configs = array("textlimit" => $textlimit->item(0)->nodeValue);
+        
+        return $configs;
+    }
+}
 
 ?>
