@@ -17,11 +17,11 @@ The others are optional and act like add-ons.
 After activating the Micro-blog Tools plugin, you need to connect it to your micro-blog.  
 To do that, you can use the new menu item called "Micro-blog Tools settings" under "Settings" in your left navigation.
 
-On the "Connect" page, first select your micro-blog provider (Twitter, Identi.ca or StatusNet)
+On the "Connect" page, select your micro-blog provider (Twitter, Identi.ca or StatusNet)
 
 ## Twitter and Identi.ca
 
-1. After clicking the "Connect" button, you will be redirected to your micro-blog provider.  
+1. After clicking the Twitter or Identi.ca button, you will be redirected to your micro-blog provider.  
 1. Log in if necessary
 1. Simply click "Allow" to connect Micro-blog Tools to your micro-blog.  
 
@@ -36,4 +36,4 @@ On the "Connect" page, first select your micro-blog provider (Twitter, Identi.ca
 1. On the next page, click on the "Micro-blog Tools" link
 1. Copy and paste the "Consumer Key" and "Consumer Secret" values in the Micro-blog Tools boxes
 
-You will then be redirected here where you\'ll be able to change your settings, if desired.
+You will then be redirected to the configuration page where you\'ll be able to change your settings, if desired.
