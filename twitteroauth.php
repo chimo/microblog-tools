@@ -40,18 +40,6 @@ class TwitterOAuth {
   /* Immediately retry the API call if the response was not successful. */
   //public $retry = TRUE;
 
-
-
-
-  /**
-   * Set API URLS
-   */
-  // NOTE: We aren't using those anymore
-  /* function accessTokenURL()  { return 'https://identi.ca/api/oauth/access_token'; }
-  function authenticateURL() { return 'https://identi.ca/api/oauth/authenticate'; }
-  function authorizeURL()    { return 'https://identi.ca/api/oauth/authorize'; }
-  function requestTokenURL() { return 'https://identi.ca/api/oauth/request_token'; } */
-
   /**
    * Debug helpers
    */
@@ -72,17 +60,20 @@ class TwitterOAuth {
     }
   }
 
-
   /**
    * Get a request_token from Twitter
    *
    * @returns a key/value array containing oauth_token and oauth_token_secret
    */
-  function getRequestToken($url, $oauth_callback = NULL) {  // Chimo: added $url param
+  function getRequestToken($url, $oauth_callback = NULL, $displayname = NULL) {  // Chimo: added $url and $displayname params
     $parameters = array();
     if (!empty($oauth_callback)) {
       $parameters['oauth_callback'] = $oauth_callback;
-    } 
+    }
+    if (!empty($displayname)) {
+      $parameters['xoauth_displayname'] = $displayname;
+    }
+
     // $request = $this->oAuthRequest($this->requestTokenURL(), 'GET', $parameters);
 	$request = $this->oAuthRequest($url, 'GET', $parameters);
     $token = OAuthUtil::parse_parameters($request);
