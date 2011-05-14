@@ -28,12 +28,8 @@ On the "Connect" page, select your micro-blog provider (Twitter, Identi.ca or St
 ## StatusNet
 
 1. Enter the domain name of your StatusNet provider (ex: http://chimo.status.net/)
-1. Click on the link that was generated from the domain you entered above.  
-1. In the new window, log in if necessary.
-1. You should now have a "New application" form that's already filled out.
-1. Change "Default Access" (last option) to "Read-write"
-1. Click "Save"
-1. On the next page, click on the "Micro-blog Tools" link
-1. Copy and paste the "Consumer Key" and "Consumer Secret" values in the Micro-blog Tools boxes
+1. Click the StatusNet button, you will be redirected to your StatusNet provider.
+1. Log in if necessary
+1. Simply click "Allow" to connect Micro-blog Tools to your micro-blog.  
 
 You will then be redirected to the configuration page where you\'ll be able to change your settings, if desired.
