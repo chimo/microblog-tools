@@ -163,7 +163,6 @@ class twitter_tools {
         );
         // TODO: remove account-specific options from this array
 		$this->options = array(
-//			'twitter_username'          # account
 			'create_blog_posts'      
 			, 'create_digest'         
 			, 'create_digest_weekly'
@@ -175,38 +174,16 @@ class twitter_tools {
 			, 'blog_post_author'
 			, 'blog_post_category'
 			, 'blog_post_tags'
-//			, 'notify_twitter'          # account
 			, 'sidebar_tweet_count'
 			, 'tweet_from_sidebar'
 			, 'give_tt_credit'
 			, 'exclude_reply_tweets'
-//			, 'tweet_prefix'            # account
 			, 'last_tweet_download'
 			, 'doing_tweet_download'
 			, 'doing_digest_post'
 			, 'install_date'
 			, 'js_lib'
 			, 'digest_tweet_order'
-//			, 'notify_twitter_default'  # account
-/*			, 'app_consumer_key'        # account
-			, 'app_consumer_secret'     # account
-			, 'oauth_token'             # account
-			, 'oauth_token_secret'      # account
-            , 'oauth_hash'              # account
-			, 'service'                 # account
-			, 'host'                    # account
-			, 'host_api'                # account
-			, 'api_post_status'         # account
-			, 'api_user_timeline'       # account
-			, 'api_status_show'         # account
-			, 'profile_url'             # account
-			, 'status_url'              # account
-			, 'hashtag_url'             # account
-			, 'authen_url'              # account
-			, 'author_url'              # account
-			, 'request_url'             # account
-			, 'access_url'              # account
-			, 'textlimit'               # account */
 		);
 		$this->twitter_username = '';
 		$this->create_blog_posts = '0';
@@ -333,9 +310,10 @@ class twitter_tools {
 		}
 		$this->tweet_format = $this->tweet_prefix.': %s %s'; // FIXME: !?
 
-        // TODO: use wpdb->prefix & co in SQL query
+        // TODO: no use for vars, use in query directly
         $userid = wp_get_current_user()->ID;
-        $acct_settings = $wpdb->get_row("SELECT * FROM wp_ubtools_accts WHERE uid = $userid", ARRAY_A);
+        $tbl = $wpdb->prefix . 'ubtools_accts';
+        $acct_settings = $wpdb->get_row("SELECT * FROM $tbl WHERE uid = $userid", ARRAY_A);
         foreach ($this->acct_options as $option) {
             $value = $acct_settings[$option];
             if(!empty($value)) {
@@ -354,8 +332,6 @@ class twitter_tools {
 			}
 		}
 
-        
-        // TODO: add ubtools_$option to HTML form 
 		foreach ($this->acct_options as $option) {
 			$value = stripslashes($_POST['ubtools_'.$option]);
 			if (isset($_POST['ubtools_'.$option]) && !empty($value)) {
@@ -394,13 +370,14 @@ class twitter_tools {
         $userid = wp_get_current_user()->ID;
         $arr['uid'] = $userid;
 
-        // TODO: use wpdb->prefix & co in SQL queries
-        $uid = $wpdb->get_col("SELECT uid from wp_ubtools_accts WHERE uid = $userid");
+        // TODO: no use for vars, use in query directly
+        $tbl = $wpdb->prefix . 'ubtools_accts';
+        $uid = $wpdb->get_col("SELECT uid from $tbl WHERE uid = $userid");
         if(empty($uid)) {
-            $wpdb->insert('wp_ubtools_accts', $arr);
+            $wpdb->insert($tbl, $arr);
         }
         else {
-            $wpdb->update('wp_ubtools_accts', $arr, array('uid' => $userid));
+            $wpdb->update($tbl, $arr, array('uid' => $userid));
         }
 	}
 	
@@ -780,8 +757,9 @@ function aktt_oauth_test() {
 
     // Chimo start
     $userid = wp_get_current_user()->ID;
-    // TODO: use wpdb prefix
-    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM wp_ubtools_accts WHERE uid = $userid");
+    // TODO: no use for $tbl, use in query directly
+    $tbl = $wpdb->prefix . 'ubtools_accts';
+    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM $tbl WHERE uid = $userid");
 	return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash() == $oauth_hash[0]) );
     // Chimo end
 }
@@ -1023,9 +1001,10 @@ function aktt_make_clickable($tweet) {
 function aktt_tweet_form($type = 'input', $extra = '') {
     global $wpdb;
     
-    // TODO: use wpdb prefix thing in query
+    // TODO: no use for vars, use in query directly
+    $tbl = $wpdb->prefix . 'ubtools_accts';
     $userid = wp_get_current_user()->ID;
-    $arr = $wpdb->get_col("SELECT textlimit FROM wp_ubtools_accts WHERE uid = $userid");
+    $arr = $wpdb->get_col("SELECT textlimit FROM $tbl WHERE uid = $userid");
 
 	$output = '';
 	if (current_user_can('publish_posts') && aktt_oauth_test()) {
