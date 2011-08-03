@@ -66,7 +66,7 @@ function aktt_install() {
 	global $wpdb;
 	
 	$aktt_install = new twitter_tools;
-	$wpdb->aktt = $wpdb->prefix.'ak_twitter';
+	$wpdb->aktt = $wpdb->prefix.'ubtools';
 	$tables = $wpdb->get_col("
 		SHOW TABLES LIKE '$wpdb->aktt'
 	");
@@ -92,49 +92,55 @@ function aktt_install() {
 			UNIQUE KEY `tw_id_unique` ( `tw_id` )
 			) $charset_collate
 		");
+        // TODO: revise column types. longtext was used since wp_options table uses longtext for everything
+        // TODO: It would be nice to create tables based on acct_options[] and options[] so we don't have to remember to match the two
+        $tbl = $wpdb->aktt . "_accts"; // FIXME: useless variable, show it in the query directly
+        $result = $wpdb->query("
+            CREATE TABLE `$tbl` (
+            `uid` BIGINT( 20 ) UNSIGNED NOT NULL PRIMARY KEY ,
+            `twitter_username` longtext NOT NULL ,
+            `app_consumer_key` longtext NOT NULL ,
+            `app_consumer_secret` longtext NOT NULL ,
+            `oauth_token` longtext NOT NULL ,
+            `oauth_token_secret` longtext NOT NULL ,
+            `oauth_hash` longtext NOT NULL ,
+            `service` longtext NOT NULL ,
+            `host` longtext NOT NULL ,
+            `host_api` longtext NOT NULL ,
+            `api_post_status` longtext NOT NULL ,
+            `api_user_timeline` longtext NOT NULL ,
+            `api_status_show` longtext NOT NULL ,
+            `profile_url` longtext NOT NULL ,
+            `status_url` longtext NOT NULL ,
+            `hashtag_url` longtext NOT NULL ,
+            `authen_url` longtext NOT NULL ,
+            `author_url` longtext NOT NULL ,
+            `request_url` longtext NOT NULL ,
+            `access_url` longtext NOT NULL ,
+            `textlimit` longtext NOT NULL ,
+            `notify_twitter` longtext NOT NULL ,
+            `notify_twitter_default` longtext NOT NULL ,
+            `tweet_prefix` longtext NOT NULL ,
+            UNIQUE KEY `ubt_id_unique` ( `uid` )
+            ) $charset_collate
+        ");
+
 	}
 	foreach ($aktt_install->options as $option) {
 		add_option('aktt_'.$option, $aktt_install->$option);
 	}
+    // TODO: this should be account-specific
 	add_option('aktt_update_hash', '');
 }
 register_activation_hook(AKTT_FILE, 'aktt_install');
 
 class twitter_tools {
 	function twitter_tools() {
-		$this->options = array(
-			'twitter_username'
-			, 'create_blog_posts'
-			, 'create_digest'
-			, 'create_digest_weekly'
-			, 'digest_daily_time'
-			, 'digest_weekly_time'
-			, 'digest_weekly_day'
-			, 'digest_title'
-			, 'digest_title_weekly'
-			, 'blog_post_author'
-			, 'blog_post_category'
-			, 'blog_post_tags'
-			, 'notify_twitter'
-			, 'sidebar_tweet_count'
-			, 'tweet_from_sidebar'
-			, 'give_tt_credit'
-			, 'exclude_reply_tweets'
-			, 'tweet_prefix'
-			, 'last_tweet_download'
-			, 'doing_tweet_download'
-			, 'doing_digest_post'
-			, 'install_date'
-			, 'js_lib'
-			, 'digest_tweet_order'
-			, 'notify_twitter_default'
-			, 'app_consumer_key'
-			, 'app_consumer_secret'
-			, 'oauth_token'
-			, 'oauth_token_secret'
-			, 'service'
-			, 'host'
-			, 'host_api'
+        $this->acct_options = array(
+            'twitter_username'      // microblog username
+            , 'service'             // microblog service (twitter, identica, statusnet)
+            , 'host'                // microblog host (twitter.com, identi.ca, etc)
+            , 'host_api'            // microblog api (api.twitter.com/1/, identi.ca/api, etc)
 			, 'api_post_status'
 			, 'api_user_timeline'
 			, 'api_status_show'
@@ -145,8 +151,62 @@ class twitter_tools {
 			, 'author_url'
 			, 'request_url'
 			, 'access_url'
-			, 'textlimit'
-
+			, 'textlimit'           // microblog character limit (140, 140, etc)        
+            , 'app_consumer_key'    // oauth
+            , 'app_consumer_secret' // oauth
+            , 'oauth_token'         // oauth
+            , 'oauth_token_secret'  // oauth
+            , 'oauth_hash'          // oauth // TODO: move temporary "ch_tok" & co. here 
+            , 'notify_twitter'      // 'Notify Twitter?' post options
+            , 'notify_twitter_default'  // Notify Twitter by default
+            , 'tweet_prefix'        // Notice/tweet prefix ('New Blog Post: ' is default)
+        );
+        // TODO: remove account-specific options from this array
+		$this->options = array(
+//			'twitter_username'          # account
+			'create_blog_posts'      
+			, 'create_digest'         
+			, 'create_digest_weekly'
+			, 'digest_daily_time'
+			, 'digest_weekly_time'
+			, 'digest_weekly_day'
+			, 'digest_title'
+			, 'digest_title_weekly'
+			, 'blog_post_author'
+			, 'blog_post_category'
+			, 'blog_post_tags'
+//			, 'notify_twitter'          # account
+			, 'sidebar_tweet_count'
+			, 'tweet_from_sidebar'
+			, 'give_tt_credit'
+			, 'exclude_reply_tweets'
+//			, 'tweet_prefix'            # account
+			, 'last_tweet_download'
+			, 'doing_tweet_download'
+			, 'doing_digest_post'
+			, 'install_date'
+			, 'js_lib'
+			, 'digest_tweet_order'
+//			, 'notify_twitter_default'  # account
+/*			, 'app_consumer_key'        # account
+			, 'app_consumer_secret'     # account
+			, 'oauth_token'             # account
+			, 'oauth_token_secret'      # account
+            , 'oauth_hash'              # account
+			, 'service'                 # account
+			, 'host'                    # account
+			, 'host_api'                # account
+			, 'api_post_status'         # account
+			, 'api_user_timeline'       # account
+			, 'api_status_show'         # account
+			, 'profile_url'             # account
+			, 'status_url'              # account
+			, 'hashtag_url'             # account
+			, 'authen_url'              # account
+			, 'author_url'              # account
+			, 'request_url'             # account
+			, 'access_url'              # account
+			, 'textlimit'               # account */
 		);
 		$this->twitter_username = '';
 		$this->create_blog_posts = '0';
@@ -197,13 +257,13 @@ class twitter_tools {
 		$this->last_tweet_download = '';
 		$this->doing_tweet_download = '0';
 		$this->doing_digest_post = '0';
-		$this->oauth_hash = '';
+		$this->oauth_hash = '';         # account
 		$this->version = AKTT_VERSION;
 	}
 	
 	function upgrade() {
 		global $wpdb;
-		$wpdb->aktt = $wpdb->prefix.'ak_twitter';
+		$wpdb->aktt = $wpdb->prefix.'ubtools';
 
 		$col_data = $wpdb->get_results("
 			SHOW COLUMNS FROM $wpdb->aktt
@@ -254,24 +314,38 @@ class twitter_tools {
 	}
 	
 	function upgrade_default_tweet_prefix() {
-		$prefix = get_option('aktt_tweet_prefix');
+		$prefix = get_option('aktt_tweet_prefix'); // FIXME: This shouldn't be taken from wp_options (get_option())
 		if (empty($prefix)) {
 			$aktt_defaults = new twitter_tools;
 			update_option('aktt_tweet_prefix', $aktt_defaults->tweet_prefix);
 		}
 	}
 
+    // fetch object props from wp option storage
 	function get_settings() {
+	    global $wpdb;
+
 		foreach ($this->options as $option) {
 			$value = get_option('aktt_'.$option);
 			if ($option != 'tweet_prefix' || !empty($value)) {
 				$this->$option = $value;
 			}
 		}
-		$this->tweet_format = $this->tweet_prefix.': %s %s';
+		$this->tweet_format = $this->tweet_prefix.': %s %s'; // FIXME: !?
+
+        // TODO: use wpdb->prefix & co in SQL query
+        $userid = wp_get_current_user()->ID;
+        $acct_settings = $wpdb->get_row("SELECT * FROM wp_ubtools_accts WHERE uid = $userid", ARRAY_A);
+        foreach ($this->acct_options as $option) {
+            $value = $acct_settings[$option];
+            if(!empty($value)) {
+                $this->$option = $value;
+            }
+        }
+        $this->tweet_format = $this->tweet_prefix.': %s %s'; // TODO: What is this?
 	}
 	
-	// puts post fields into object propps
+	// puts post fields into object props
 	function populate_settings() {
 		foreach ($this->options as $option) {
 			$value = stripslashes($_POST['aktt_'.$option]);
@@ -279,10 +353,21 @@ class twitter_tools {
 				$this->$option = $value;
 			}
 		}
+
+        
+        // TODO: add ubtools_$option to HTML form 
+		foreach ($this->acct_options as $option) {
+			$value = stripslashes($_POST['ubtools_'.$option]);
+			if (isset($_POST['ubtools_'.$option]) && !empty($value)) {
+				$this->$option = $value;
+			}
+		}
 	}
 	
 	// puts object props into wp option storage
 	function update_settings() {
+    	global $wpdb;
+
 		if (current_user_can('manage_options')) {
 			$this->sidebar_tweet_count = intval($this->sidebar_tweet_count);
 			if ($this->sidebar_tweet_count == 0) {
@@ -300,6 +385,23 @@ class twitter_tools {
 			update_option('aktt_installed_version', AKTT_VERSION);
 			delete_option('aktt_twitter_password');
 		}
+
+        // Accts
+        $arr = array();
+        foreach($this->acct_options as $option) {
+            $arr[$option] = $this->$option;
+        }
+        $userid = wp_get_current_user()->ID;
+        $arr['uid'] = $userid;
+
+        // TODO: use wpdb->prefix & co in SQL queries
+        $uid = $wpdb->get_col("SELECT uid from wp_ubtools_accts WHERE uid = $userid");
+        if(empty($uid)) {
+            $wpdb->insert('wp_ubtools_accts', $arr);
+        }
+        else {
+            $wpdb->update('wp_ubtools_accts', $arr, array('uid' => $userid));
+        }
 	}
 	
 	// figure out when the next weekly and daily digests will be
@@ -672,8 +774,16 @@ function aktt_status_url($username, $status) {
 	);
 }
 function aktt_oauth_test() {
-	global $aktt;
-	return ( aktt_oauth_credentials_to_hash() == get_option('aktt_oauth_hash') );
+	global $aktt, $wpdb;
+
+//	return ( aktt_oauth_credentials_to_hash() == get_option('aktt_oauth_hash') );
+
+    // Chimo start
+    $userid = wp_get_current_user()->ID;
+    // TODO: use wpdb prefix
+    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM wp_ubtools_accts WHERE uid = $userid");
+	return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash() == $oauth_hash[0]) );
+    // Chimo end
 }
 
 function aktt_ping_digests() {
@@ -911,6 +1021,12 @@ function aktt_make_clickable($tweet) {
 }
 
 function aktt_tweet_form($type = 'input', $extra = '') {
+    global $wpdb;
+    
+    // TODO: use wpdb prefix thing in query
+    $userid = wp_get_current_user()->ID;
+    $arr = $wpdb->get_col("SELECT textlimit FROM wp_ubtools_accts WHERE uid = $userid");
+
 	$output = '';
 	if (current_user_can('publish_posts') && aktt_oauth_test()) {
 		$output .= '
@@ -920,14 +1036,14 @@ function aktt_tweet_form($type = 'input', $extra = '') {
 		switch ($type) {
 			case 'input':
 				$output .= '
-		<p><input type="text" size="20" maxlength="' . get_option('aktt_textlimit') . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();" /></p>
+		<p><input type="text" size="20" maxlength="' . $arr[0] . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();" /></p>
 		<input type="hidden" name="ak_action" value="aktt_post_tweet_sidebar" />
 		<script type="text/javascript">
 		//<![CDATA[
 		function akttCharCount() {
 			var count = document.getElementById("aktt_tweet_text").value.length;
 			if (count > 0) {
-				document.getElementById("aktt_char_count").innerHTML = ' . get_option('aktt_textlimit') . ' - count;
+				document.getElementById("aktt_char_count").innerHTML = ' . $arr[0] . ' - count;
 			}
 			else {
 				document.getElementById("aktt_char_count").innerHTML = "";
@@ -941,14 +1057,14 @@ function aktt_tweet_form($type = 'input', $extra = '') {
 				break;
 			case 'textarea':
 				$output .= '
-		<p><textarea type="text" cols="60" rows="5" maxlength="' . get_option('aktt_textlimit') . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();"></textarea></p>
+		<p><textarea type="text" cols="60" rows="5" maxlength="' . $arr[0] . '" id="aktt_tweet_text" name="aktt_tweet_text" onkeyup="akttCharCount();"></textarea></p>
 		<input type="hidden" name="ak_action" value="aktt_post_tweet_admin" />
 		<script type="text/javascript">
 		//<![CDATA[
 		function akttCharCount() {
 			var count = document.getElementById("aktt_tweet_text").value.length;
 			if (count > 0) {
-				document.getElementById("aktt_char_count").innerHTML = (' . get_option('aktt_textlimit') . ' - count) + "'.__(' characters remaining', 'microblog-tools').'";
+				document.getElementById("aktt_char_count").innerHTML = (' . $arr[0] . ' - count) + "'.__(' characters remaining', 'microblog-tools').'";
 			}
 			else {
 				document.getElementById("aktt_char_count").innerHTML = "";
@@ -1013,7 +1129,7 @@ function aktt_widget_init() {
 		// complete form. This will be embedded into the existing form.
 		print('
 			<p style="text-align:right;"><label for="aktt_widget_title">' . __('Title:') . ' <input style="width: 200px;" id="aktt_widget_title" name="aktt_widget_title" type="text" value="'.$title.'" /></label></p>
-			<p>'.__('Find additional Micro-blog Tools options on the <a href="options-general.php?page=microblog-tools.php">Micro-blog Tools Options page</a>.', 'microblog-tools').'
+			<p>'.__('Find additional Micro-blog Tools options on the <a href="tools.php?page=microblog-tools.php">Micro-blog Tools Options page</a>.', 'microblog-tools').'
 			<input type="hidden" id="ak_action" name="ak_action" value="aktt_update_widget_options" />
 		');
 	}
@@ -1024,7 +1140,7 @@ add_action('widgets_init', 'aktt_widget_init');
 
 function aktt_init() {
 	global $wpdb, $aktt;
-	$wpdb->aktt = $wpdb->prefix.'ak_twitter';
+	$wpdb->aktt = $wpdb->prefix.'ubtools';
 	$aktt = new twitter_tools;
 	$aktt->get_settings();
 	if (($aktt->last_tweet_download + $aktt->tweet_download_interval()) < time()) {
@@ -1048,7 +1164,7 @@ function aktt_init() {
 			$update = true;
 		}
 		if (!get_option('aktt_tweet_prefix')) {
-			update_option('aktt_tweet_prefix', $aktt->tweet_prefix);
+			update_option('aktt_tweet_prefix', $aktt->tweet_prefix); // FIXME: this shouldn't get into wp_options
 			$update = true;
 		}
 		$installed_version = get_option('aktt_installed_version');
@@ -1056,10 +1172,10 @@ function aktt_init() {
 			$update = true;
 		}
 		if (!empty($installed_version) && version_compare($installed_version, '2.4', '<') && !aktt_oauth_test()) { // TODO: re-enable this check if the configured account is Twitter
-			// add_action('admin_notices', create_function( '', "echo '<div class=\"error\"><p>".sprintf(__('Twitter recently changed how it authenticates its users, you will need you to update your <a href="%s">Twitter Tools settings</a>. We apologize for any inconvenience these new authentication steps may cause.', 'twitter-tools'), admin_url('options-general.php?page=twitter-tools.php'))."</p></div>';" ) );
+			// add_action('admin_notices', create_function( '', "echo '<div class=\"error\"><p>".sprintf(__('Twitter recently changed how it authenticates its users, you will need you to update your <a href="%s">Twitter Tools settings</a>. We apologize for any inconvenience these new authentication steps may cause.', 'twitter-tools'), admin_url('tools.php?page=twitter-tools.php'))."</p></div>';" ) );
 		}
 		else if ($update) {
-			add_action('admin_notices', create_function( '', "echo '<div class=\"error\"><p>".sprintf(__('Please update your <a href="%s">Micro-blog Tools settings</a>', 'microblog-tools'), admin_url('options-general.php?page=microblog-tools.php'))."</p></div>';" ) );
+			add_action('admin_notices', create_function( '', "echo '<div class=\"error\"><p>".sprintf(__('Please update your <a href="%s">Micro-blog Tools settings</a>', 'microblog-tools'), admin_url('tools.php?page=microblog-tools.php'))."</p></div>';" ) );
 		}
 	}
 }
@@ -1557,13 +1673,13 @@ function aktt_request_handler() {
 					wp_die('Oops, please try again.');
 				}
 				aktt_update_tweets();
-				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&tweets-updated=true'));
+				wp_redirect(admin_url('tools.php?page=microblog-tools.php&tweets-updated=true'));
 				die();
 				break;
 			// Chimo start
 			case 'reqTok_success':
 				if($_GET['oauth_problem'] == 'user_refused') {
-					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&user_refused=true'));
+					wp_redirect(admin_url('tools.php?page=microblog-tools.php&user_refused=true'));
 					exit;
 				}
 
@@ -1579,14 +1695,14 @@ function aktt_request_handler() {
                 // Get Access Token
                 // TODO: Detect and handle error messages from the server (ex: Invalid token/timestamp, etc.)
 				$ch_tok = $connection->getAccessToken($aktt->access_url, $_GET['oauth_verifier']);
-				if(empty($ch_tok['oauth_token']) || empty($ch_tok['oauth_token_secret'])) {
-					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&errAccTok=true'));
+                if(empty($ch_tok['oauth_token']) || empty($ch_tok['oauth_token_secret'])) {
+                    wp_redirect(admin_url('tools.php?page=microblog-tools.php&errAccTok=true'));
 					exit;
 				}
 
 				// Save the Access Token
-				update_option('aktt_oauth_token', $ch_tok['oauth_token']);
-				update_option('aktt_oauth_token_secret', $ch_tok['oauth_token_secret']);
+//				update_option('aktt_oauth_token', $ch_tok['oauth_token']);
+//				update_option('aktt_oauth_token_secret', $ch_tok['oauth_token_secret']);
 				$aktt->oauth_token = $ch_tok['oauth_token'];
 				$aktt->oauth_token_secret = $ch_tok['oauth_token_secret'];
 				
@@ -1595,17 +1711,20 @@ function aktt_request_handler() {
 				$data = $connection->get('account/verify_credentials');
 				if ($connection->http_code == '200') {
 					$data = json_decode($data);
-					update_option('aktt_twitter_username', stripslashes($data->screen_name));
-					$oauth_hash = aktt_oauth_credentials_to_hash();
-					update_option('aktt_oauth_hash', $oauth_hash);
+//					update_option('aktt_twitter_username', stripslashes($data->screen_name));
+                    $aktt->twitter_username = stripslashes($data->screen_name);
+					$aktt->oauth_hash = aktt_oauth_credentials_to_hash();
+//					update_option('aktt_oauth_hash', $oauth_hash);
 					delete_option('ch_req_token');
 					delete_option('ch_req_token_secret');
 					// $message = 'success'; // This isn't used anymore, but we should indicate that the connection was a success somewhere, somehow
 				}
 				else {
-					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&errActCred=true'));
+					wp_redirect(admin_url('tools.php?page=microblog-tools.php&errActCred=true'));
 					exit;
-				}
+                }
+                
+                $aktt->update_settings();
 				break;
 			// Chimo end
 			case 'aktt_reset_tweet_checking':
@@ -1613,7 +1732,7 @@ function aktt_request_handler() {
 					wp_die('Oops, please try again.');
 				}
 				aktt_reset_tweet_checking();
-				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&tweet-checking-reset=true'));
+				wp_redirect(admin_url('tools.php?page=microblog-tools.php&tweet-checking-reset=true'));
 				die();
 				break;
 			case 'aktt_reset_digests':
@@ -1621,7 +1740,7 @@ function aktt_request_handler() {
 					wp_die('Oops, please try again.');
 				}
 				aktt_reset_digests();
-				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&digest-reset=true'));
+				wp_redirect(admin_url('tools.php?page=microblog-tools.php&digest-reset=true'));
 				die();
 				break;
 		}
@@ -1634,7 +1753,7 @@ function aktt_request_handler() {
 				}
 				$aktt->populate_settings();
 				$aktt->update_settings();
-				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&updated=true'));
+				wp_redirect(admin_url('tools.php?page=microblog-tools.php&updated=true'));
 				die();
 				break;
 			case 'aktt_post_tweet_sidebar':
@@ -1691,7 +1810,7 @@ function aktt_request_handler() {
 						// If it's really statusnet (not identica) check if a host was provided					
 						if($_POST['aktt_service'] == "statusnet") {
 							if(empty($_POST['host'])) {
-								wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&err_host=true'));
+								wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&err_host=true'));
 								exit;
 							}
 							else {
@@ -1707,22 +1826,22 @@ function aktt_request_handler() {
                         // Get the API root from the server
                         require_once('statusnet-utils.php');
                         if(!($dom = StatusNet::getIndexPage($aktt->host))) {
-							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errIndxPg=' . urlencode($_POST['host'])));
+							wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errIndxPg=' . urlencode($_POST['host'])));
 							exit;
                         }
                         
                         if(!($uri = StatusNet::getRSDpath($dom))) {
-							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errRSDpath=true'));
+							wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errRSDpath=true'));
 							exit;
                         }
                         
                         if(!($xml = StatusNet::getRSD($uri))) {
-							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errRSD=true'));
+							wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errRSD=true'));
 							exit;
                         }
                         
                         if(!($apiRoot = StatusNet::getAPIpath($xml))) {
-							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errAPIpath=true'));
+							wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errAPIpath=true'));
 							exit;                        
                         }
 						
@@ -1730,7 +1849,7 @@ function aktt_request_handler() {
                         
                         // Get the server configs from the statusnet server
 						if(!($configs = StatusNet::getConfigs($aktt->host_api))) {
-							wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errConfigs=true'));
+							wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errConfigs=true'));
 							exit;
 						}
 
@@ -1776,11 +1895,12 @@ function aktt_request_handler() {
                 }
 
                 $connection = aktt_oauth_connection();
-                $ch_tok = $connection->getRequestToken($aktt->request_url, admin_url('options-general.php?page=microblog-tools.php&ak_action=reqTok_success'), $displayname);
+                $ch_tok = $connection->getRequestToken($aktt->request_url, admin_url('tools.php?page=microblog-tools.php&ak_action=reqTok_success'), $displayname);
 
                 // TODO: Detect and handle error messages from the server (ex: Invalid token/timestamp, etc.)
 				if(empty($ch_tok['oauth_token']) || empty($ch_tok['oauth_token_secret'])) {
-					wp_redirect(admin_url('options-general.php?page=microblog-tools.php&service=statusnet&errReqTok=true'));
+					wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&errReqTok=true'));
+                    exit;
 				}
 				
 				update_option('ch_req_token', $ch_tok['oauth_token']);
@@ -1798,7 +1918,7 @@ function aktt_request_handler() {
 				update_option('aktt_app_consumer_secret', '');
 				update_option('aktt_oauth_token', '');
 				update_option('aktt_oauth_token_secret', '');
-				wp_redirect(admin_url('options-general.php?page=microblog-tools.php&updated=true'));
+				wp_redirect(admin_url('tools.php?page=microblog-tools.php&updated=true'));
 				exit;
 			break;
 		}
@@ -1819,7 +1939,7 @@ function aktt_admin_tweet_form() {
 		print('
 			<div class="wrap" id="aktt_write_tweet">
 			<h2>'.__('Write Notice', 'microblog-tools').'</h2>
-			<p>'.__('This will create a new \'notice\' on your Micro-blog instance using the account information in your <a href="options-general.php?page=microblog-tools.php">Micro-blog Tools Options</a>.', 'microblog-tools').'</p>
+			<p>'.__('This will create a new \'notice\' on your Micro-blog instance using the account information in your <a href="tools.php?page=microblog-tools.php">Micro-blog Tools Options</a>.', 'microblog-tools').'</p>
 			'.aktt_tweet_form('textarea').'
 			</div>
 		');
@@ -2010,7 +2130,7 @@ function aktt_options_form() {
 	if ( !aktt_oauth_test() ) {
 		print('
 			<h3>'.__('Connect to your Micro-blog instance','microblog-tools').'</h3>
-			<form id="tt_form" action="'.admin_url('options-general.php').'" method="post">
+			<form id="tt_form" action="'.admin_url('tools.php').'" method="post">
 				<fieldset>
 					<div class="ublog">
 						<label for="twitter">Connect to Twitter</label><br />
@@ -2021,7 +2141,7 @@ function aktt_options_form() {
 					'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
                 </fieldset>
             </form>
-			<form id="id_form" action="'.admin_url('options-general.php').'" method="post">
+			<form id="id_form" action="'.admin_url('tools.php').'" method="post">
 				<fieldset>
 					<div class="ublog">
 						<label for="identica">Connect to Identica</label><br />                        
@@ -2032,7 +2152,7 @@ function aktt_options_form() {
 					'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
                 </fieldset>
             </form>
-			<form id="sn_form" action="'.admin_url('options-general.php').'" method="post">
+			<form id="sn_form" action="'.admin_url('tools.php').'" method="post">
 				<fieldset>
 					<div class="ublog">
 						<label for="host">StatusNet URL</label><br />
@@ -2047,7 +2167,7 @@ function aktt_options_form() {
 	}
 	else if ( aktt_oauth_test() ) {
 		print('	
-			<form id="ak_twittertools_disconnect" name="ak_twittertools_disconnect" action="'.admin_url('options-general.php').'" method="post">
+			<form id="ak_twittertools_disconnect" name="ak_twittertools_disconnect" action="'.admin_url('tools.php').'" method="post">
 				<p><a href="#" id="aktt_authentication_showhide" class="auth_information_link">Account Information</a></p>
 				<div id="aktt_authentication_display">
 					<fieldset class="options">
@@ -2065,20 +2185,22 @@ function aktt_options_form() {
 				</div>		
 			</form>
 					
-			<form id="ak_twittertools" name="ak_twittertools" action="'.admin_url('options-general.php').'" method="post">
+			<form id="ak_twittertools" name="ak_twittertools" action="'.admin_url('tools.php').'" method="post">
 				<fieldset class="options">			
 					<div class="option">
-						<label for="aktt_notify_twitter">'.__('Enable option to create a notice when you post in your blog?', 'microblog-tools').'</label>
-						<select name="aktt_notify_twitter" id="aktt_notify_twitter">'.$notify_twitter_options.'</select>
+						<label for="ubtools_notify_twitter">'.__('Enable option to create a notice when you post in your blog?', 'microblog-tools').'</label>
+						<select name="ubtools_notify_twitter" id="ubtools_notify_twitter">'.$notify_twitter_options.'</select>
 					</div>
 					<div class="option">
-						<label for="aktt_tweet_prefix">'.__('Notice prefix for new blog posts:', 'microblog-tools').'</label>
-						<input type="text" size="30" name="aktt_tweet_prefix" id="aktt_tweet_prefix" value="'.esc_attr($aktt->tweet_prefix).'" /><span>'.__('Cannot be left blank. Will result in <b>{Your prefix}: Title URL</b>', 'twitter-tools').'</span>
+						<label for="ubtools_tweet_prefix">'.__('Notice prefix for new blog posts:', 'microblog-tools').'</label>
+						<input type="text" size="30" name="ubtools_tweet_prefix" id="ubtools_tweet_prefix" value="'.esc_attr($aktt->tweet_prefix).'" /><span>'.__('Cannot be left blank. Will result in <b>{Your prefix}: Title URL</b>', 'twitter-tools').'</span>
 					</div>
 					<div class="option">
-						<label for="aktt_notify_twitter_default">'.__('Set this on by default?', 'microblog-tools').'</label>
-						<select name="aktt_notify_twitter_default" id="aktt_notify_twitter_default">'.$notify_twitter_default_options.'</select><span>'							.__('Also determines tweeting for posting via XML-RPC', 'twitter-tools').'</span>
-					</div>
+						<label for="ubtools_notify_twitter_default">'.__('Set this on by default?', 'microblog-tools').'</label>
+						<select name="ubtools_notify_twitter_default" id="ubtools_notify_twitter_default">'.$notify_twitter_default_options.'</select><span>'							.__('Also determines tweeting for posting via XML-RPC', 'twitter-tools').'</span>
+					</div>');
+        if(current_user_can('manage_options')) {
+            print('
 					<div class="option">
 						<label for="aktt_create_blog_posts">'.__('Create a blog post from each of your notice?', 'microblog-tools').'</label>
 						<select name="aktt_create_blog_posts" id="aktt_create_blog_posts">'.$create_blog_posts_options.'</select>
@@ -2092,10 +2214,10 @@ function aktt_options_form() {
 						<input name="aktt_blog_post_tags" id="aktt_blog_post_tags" value="'.esc_attr($aktt->blog_post_tags).'">
 						<span>'.__('Separate multiple tags with commas. Example: notices, micro-blog', 'microblog-tools').'</span>
 					</div>
-					<div class="option">
+<!--					<div class="option">
 						<label for="aktt_blog_post_author">'.__('Author for notice posts:', 'microblog-tools').'</label>
 						<select name="aktt_blog_post_author" id="aktt_blog_post_author">'.$author_options.'</select>
-					</div>
+					</div> -->
 					<div class="option">
 						<label for="aktt_exclude_reply_tweets">'.__('Exclude @reply notices in your sidebar, digests and created blog posts?', 'microblog-tools').'</label>
 						<select name="aktt_exclude_reply_tweets" id="aktt_exclude_reply_tweets">'.$exclude_reply_tweets_options.'</select>
@@ -2145,8 +2267,9 @@ function aktt_options_form() {
 					<div class="option">
 						<label for="aktt_digest_tweet_order">'.__('Order of notices in digest?', 'microblog-tools').'</label>
 						<select name="aktt_digest_tweet_order" id="aktt_digest_tweet_order">'.$digest_tweet_order_options.'</select>
-					</div>
-				
+					</div>');
+        }                    
+		print('	
 					</div>
 				
 				</fieldset>
@@ -2157,7 +2280,7 @@ function aktt_options_form() {
 				'.wp_nonce_field('aktt_settings', '_wpnonce', true, false).wp_referer_field(false).'
 			</form>
 			<h2>'.__('Update Notices / Reset Checking and Digests', 'microblog-tools').'</h2>
-			<form name="ak_twittertools_updatetweets" action="'.admin_url('options-general.php').'" method="get">
+			<form name="ak_twittertools_updatetweets" action="'.admin_url('tools.php').'" method="get">
 				<p>'.__('Use these buttons to manually update your notices or reset the checking settings.', 'microblog-tools').'</p>
 				<p class="submit">
 					<input type="submit" name="submit-button" value="'.__('Update Notices', 'microblog-tools').'" />
@@ -2249,6 +2372,7 @@ function aktt_menu_items() {
 			, 'aktt_options_form'
 		);
 	}
+
 	if (current_user_can('publish_posts')) {
 		add_submenu_page(
 			'post-new.php'
@@ -2258,6 +2382,14 @@ function aktt_menu_items() {
 			, basename(__FILE__)
 			, 'aktt_admin_tweet_form'
 		);
+		add_submenu_page(
+            'tools.php'
+			, __('Micro-blog Tools Options', 'microblog-tools')
+			, __('Micro-blog Tools', 'microblog-tools')
+			, 2
+			, basename(__FILE__)
+			, 'aktt_options_form'
+		);
 	}
 }
 add_action('admin_menu', 'aktt_menu_items');
@@ -2265,7 +2397,7 @@ add_action('admin_menu', 'aktt_menu_items');
 function aktt_plugin_action_links($links, $file) {
 	$plugin_file = basename(__FILE__);
 	if (basename($file) == $plugin_file) {
-		$settings_link = '<a href="options-general.php?page='.$plugin_file.'">'.__('Settings', 'microblog-tools').'</a>';
+		$settings_link = '<a href="tools.php?page='.$plugin_file.'">'.__('Settings', 'microblog-tools').'</a>';
 		array_unshift($links, $settings_link);
 	}
 	return $links;
