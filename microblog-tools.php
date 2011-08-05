@@ -94,13 +94,14 @@ function aktt_install() {
 		");
         // TODO: revise column types. longtext was used since wp_options table uses longtext for everything
         // TODO: It would be nice to create tables based on acct_options[] and options[] so we don't have to remember to match the two
-        $tbl = $wpdb->aktt . "_accts"; // FIXME: useless variable, show it in the query directly
         $result = $wpdb->query("
-            CREATE TABLE `$tbl` (
+            CREATE TABLE `" . $wpdb->aktt . "_accts` (
             `uid` BIGINT( 20 ) UNSIGNED NOT NULL PRIMARY KEY ,
             `twitter_username` longtext NOT NULL ,
             `app_consumer_key` longtext NOT NULL ,
             `app_consumer_secret` longtext NOT NULL ,
+            `request_token` longtext NOT NULL ,
+            `request_token_secret` longtext NOT NULL ,
             `oauth_token` longtext NOT NULL ,
             `oauth_token_secret` longtext NOT NULL ,
             `oauth_hash` longtext NOT NULL ,
@@ -154,14 +155,15 @@ class twitter_tools {
 			, 'textlimit'           // microblog character limit (140, 140, etc)        
             , 'app_consumer_key'    // oauth
             , 'app_consumer_secret' // oauth
+            , 'request_token'       // oauth
+            , 'request_token_secret'// oauth
             , 'oauth_token'         // oauth
             , 'oauth_token_secret'  // oauth
-            , 'oauth_hash'          // oauth // TODO: move temporary "ch_tok" & co. here 
+            , 'oauth_hash'          // oauth
             , 'notify_twitter'      // 'Notify Twitter?' post options
             , 'notify_twitter_default'  // Notify Twitter by default
             , 'tweet_prefix'        // Notice/tweet prefix ('New Blog Post: ' is default)
         );
-        // TODO: remove account-specific options from this array
 		$this->options = array(
 			'create_blog_posts'      
 			, 'create_digest'         
@@ -234,7 +236,7 @@ class twitter_tools {
 		$this->last_tweet_download = '';
 		$this->doing_tweet_download = '0';
 		$this->doing_digest_post = '0';
-		$this->oauth_hash = '';         # account
+//		$this->oauth_hash = '';         # account
 		$this->version = AKTT_VERSION;
 	}
 	
@@ -310,10 +312,7 @@ class twitter_tools {
 		}
 		$this->tweet_format = $this->tweet_prefix.': %s %s'; // FIXME: !?
 
-        // TODO: no use for vars, use in query directly
-        $userid = wp_get_current_user()->ID;
-        $tbl = $wpdb->prefix . 'ubtools_accts';
-        $acct_settings = $wpdb->get_row("SELECT * FROM $tbl WHERE uid = $userid", ARRAY_A);
+        $acct_settings = $wpdb->get_row("SELECT * FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = " . wp_get_current_user()->ID, ARRAY_A);
         foreach ($this->acct_options as $option) {
             $value = $acct_settings[$option];
             if(!empty($value)) {
@@ -367,10 +366,11 @@ class twitter_tools {
         foreach($this->acct_options as $option) {
             $arr[$option] = $this->$option;
         }
+        
+        // 
         $userid = wp_get_current_user()->ID;
         $arr['uid'] = $userid;
 
-        // TODO: no use for vars, use in query directly
         $tbl = $wpdb->prefix . 'ubtools_accts';
         $uid = $wpdb->get_col("SELECT uid from $tbl WHERE uid = $userid");
         if(empty($uid)) {
@@ -753,13 +753,9 @@ function aktt_status_url($username, $status) {
 function aktt_oauth_test() {
 	global $aktt, $wpdb;
 
-//	return ( aktt_oauth_credentials_to_hash() == get_option('aktt_oauth_hash') );
-
     // Chimo start
     $userid = wp_get_current_user()->ID;
-    // TODO: no use for $tbl, use in query directly
-    $tbl = $wpdb->prefix . 'ubtools_accts';
-    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM $tbl WHERE uid = $userid");
+    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = $userid");
 	return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash() == $oauth_hash[0]) );
     // Chimo end
 }
@@ -800,7 +796,7 @@ function aktt_update_tweets() {
 	// hash results to see if they're any different than the last update, if so, return
 
 	$hash = md5($data);
-	if ($hash == get_option('aktt_update_hash')) {
+	if ($hash == get_option('aktt_update_hash')) { // TODO: this should be taken from the ubtools_accts table.
 		update_option('aktt_last_tweet_download', time());
 		update_option('aktt_doing_tweet_download', '0');
 		do_action('aktt_update_tweets');
@@ -851,16 +847,16 @@ function aktt_reset_tweet_checking($hash = '', $time = 0) {
 	if (!current_user_can('manage_options')) {
 		return;
 	}
-	update_option('aktt_update_hash', $hash);
-	update_option('aktt_last_tweet_download', $time);
-	update_option('aktt_doing_tweet_download', '0');
+	update_option('aktt_update_hash', $hash); // TODO: should store in ubtools_accts table
+	update_option('aktt_last_tweet_download', $time); 
+	update_option('aktt_doing_tweet_download', '0'); 
 }
 
 function aktt_reset_digests() {
 	if (!current_user_can('manage_options')) {
 		return;
 	}
-	update_option('aktt_doing_digest_post', '0');
+	update_option('aktt_doing_digest_post', '0'); 
 }
 
 function aktt_notify_twitter($post_id) {
@@ -1001,10 +997,7 @@ function aktt_make_clickable($tweet) {
 function aktt_tweet_form($type = 'input', $extra = '') {
     global $wpdb;
     
-    // TODO: no use for vars, use in query directly
-    $tbl = $wpdb->prefix . 'ubtools_accts';
-    $userid = wp_get_current_user()->ID;
-    $arr = $wpdb->get_col("SELECT textlimit FROM $tbl WHERE uid = $userid");
+    $arr = $wpdb->get_col("SELECT textlimit FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = " . wp_get_current_user()->ID);
 
 	$output = '';
 	if (current_user_can('publish_posts') && aktt_oauth_test()) {
@@ -1667,21 +1660,20 @@ function aktt_request_handler() {
 					$aktt->host_api,
 					$aktt->app_consumer_key, 
 					$aktt->app_consumer_secret,
-					get_option('ch_req_token'),
-					get_option('ch_req_token_secret')
+                    $aktt->request_token,
+                    $aktt->request_token_secret
 				);
 				
                 // Get Access Token
                 // TODO: Detect and handle error messages from the server (ex: Invalid token/timestamp, etc.)
 				$ch_tok = $connection->getAccessToken($aktt->access_url, $_GET['oauth_verifier']);
                 if(empty($ch_tok['oauth_token']) || empty($ch_tok['oauth_token_secret'])) {
+error_log("aktt: " . print_r($aktt, true));
                     wp_redirect(admin_url('tools.php?page=microblog-tools.php&errAccTok=true'));
 					exit;
 				}
 
 				// Save the Access Token
-//				update_option('aktt_oauth_token', $ch_tok['oauth_token']);
-//				update_option('aktt_oauth_token_secret', $ch_tok['oauth_token_secret']);
 				$aktt->oauth_token = $ch_tok['oauth_token'];
 				$aktt->oauth_token_secret = $ch_tok['oauth_token_secret'];
 				
@@ -1690,12 +1682,8 @@ function aktt_request_handler() {
 				$data = $connection->get('account/verify_credentials');
 				if ($connection->http_code == '200') {
 					$data = json_decode($data);
-//					update_option('aktt_twitter_username', stripslashes($data->screen_name));
                     $aktt->twitter_username = stripslashes($data->screen_name);
 					$aktt->oauth_hash = aktt_oauth_credentials_to_hash();
-//					update_option('aktt_oauth_hash', $oauth_hash);
-					delete_option('ch_req_token');
-					delete_option('ch_req_token_secret');
 					// $message = 'success'; // This isn't used anymore, but we should indicate that the connection was a success somewhere, somehow
 				}
 				else {
@@ -1864,9 +1852,6 @@ function aktt_request_handler() {
 					$aktt->request_url = 'https://api.twitter.com/oauth/request_token';
 					$aktt->access_url = 'https://api.twitter.com/oauth/access_token';
 				}
-
-				$aktt->populate_settings();
-				$aktt->update_settings();
 				
                 $displayname = NULL;
                 if($_POST['aktt_service'] != 'twitter') {
@@ -1882,8 +1867,12 @@ function aktt_request_handler() {
                     exit;
 				}
 				
-				update_option('ch_req_token', $ch_tok['oauth_token']);
-				update_option('ch_req_token_secret', $ch_tok['oauth_token_secret']);
+                $aktt->request_token = $ch_tok['oauth_token'];
+                $aktt->request_token_secret = $ch_tok['oauth_token_secret'];
+
+				$aktt->populate_settings();
+				$aktt->update_settings();                
+
 				wp_redirect($connection->getAuthorizeURL($aktt->author_url, $ch_tok['oauth_token'], FALSE));
 				exit;
 				// Chimo end
