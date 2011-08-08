@@ -130,7 +130,6 @@ function aktt_install() {
             FOREIGN KEY(uid) REFERENCES " . $wpdb->aktt . "_accts(uid)
 			) $charset_collate
 		");
-
 	}
 	foreach ($aktt_install->options as $option) {
 		add_option('aktt_'.$option, $aktt_install->$option);
@@ -188,8 +187,8 @@ class twitter_tools {
 			, 'tweet_from_sidebar'
 			, 'give_tt_credit'
 			, 'exclude_reply_tweets'
-			, 'last_tweet_download'
-			, 'doing_tweet_download'
+			, 'last_tweet_download'  // TODO: do we still need this here?
+			, 'doing_tweet_download' // TODO: do we still need this here?
 			, 'doing_digest_post'
 			, 'install_date'
 			, 'js_lib'
@@ -236,13 +235,13 @@ class twitter_tools {
 		$this->request_url = '';
 		$this->access_url = '';
 		$this->textlimit = '140';
+		$this->last_tweet_download = '';
+		$this->doing_tweet_download = '0';
 		// Chimo end
 		// not included in options
 		$this->update_hash = '';
 		$this->tweet_format = $this->tweet_prefix.': %s %s';
 		$this->last_digest_post = '';
-		$this->last_tweet_download = '';
-		$this->doing_tweet_download = '0';
 		$this->doing_digest_post = '0';
 		$this->version = AKTT_VERSION;
 	}
@@ -821,6 +820,8 @@ function aktt_update_tweets() { // TODO: Add argument to only update a single ac
     		}
     	}
         else {
+            $account['doing_tweet_download'] = 0;
+            $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
 	    	continue;
     	}
 
@@ -872,19 +873,11 @@ function aktt_update_tweets() { // TODO: Add argument to only update a single ac
     		}
     	}
     	aktt_reset_tweet_checking($hash, time(), $account); // TODO
-        do_action('aktt_update_tweets');
+        do_action('aktz_tweets');
     }
 }
 
 function aktt_reset_tweet_checking($hash = '', $time = 0, $acct = NULL) {
-/*	if (!current_user_can('manage_options')) {
-		return;
-	}
-	update_option('aktt_update_hash', $hash); // TODO: should store in ubtools_accts table
-	update_option('aktt_last_tweet_download', $time); 
-    update_option('aktt_doing_tweet_download', '0'); 
- */
-
     if($acct == NULL)
         return;
 
@@ -1160,10 +1153,10 @@ function aktt_init() {
 	$wpdb->aktt = $wpdb->prefix.'ubtools';
 	$aktt = new twitter_tools;
 	$aktt->get_settings();
-	if (($aktt->last_tweet_download + $aktt->tweet_download_interval()) < time()) {
+//	if (($aktt->last_tweet_download + $aktt->tweet_download_interval()) < time()) {
 		add_action('shutdown', 'aktt_update_tweets');
 		add_action('shutdown', 'aktt_ping_digests');
-	}
+//	}
 	if (!is_admin() && $aktt->tweet_from_sidebar && current_user_can('publish_posts')) {
 		switch ($aktt->js_lib) {
 			case 'jquery':
@@ -1822,7 +1815,7 @@ function aktt_request_handler() {
 				$auth_test = false; // ?
 
 				// Chimo start
-				switch($_POST['aktt_service']) {
+				switch($_POST['ubtools_service']) {
 					case 'twitter':
 						$aktt->app_consumer_key = 'Rj3E8KqOu53FdDtxwMyaw';
 						$aktt->app_consumer_secret = '7SyOGGCJV4JQRNI0spsGVoCQ78tZSyYdUXu1lSsvWjM';
@@ -1835,7 +1828,7 @@ function aktt_request_handler() {
 					// break;
 					case 'statusnet':
 						// If it's really statusnet (not identica) check if a host was provided					
-						if($_POST['aktt_service'] == "statusnet") {
+						if($_POST['ubtools_service'] == "statusnet") {
 							if(empty($_POST['host'])) {
 								wp_redirect(admin_url('tools.php?page=microblog-tools.php&service=statusnet&err_host=true'));
 								exit;
@@ -1888,7 +1881,7 @@ function aktt_request_handler() {
 						return; // TODO: Display error msg
 				}
 
-				if($_POST['aktt_service'] != 'twitter') {
+				if($_POST['ubtools_service'] != 'twitter') {
 					$aktt->api_post_status = $aktt->host_api . 'statuses/update.json';
 					$aktt->api_user_timeline = $aktt->host_api . 'statuses/user_timeline.json';
 					$aktt->api_status_show = 'statuses/show/###ID###.json';
@@ -1914,7 +1907,7 @@ function aktt_request_handler() {
 				}
 				
                 $displayname = NULL;
-                if($_POST['aktt_service'] != 'twitter') {
+                if($_POST['ubtools_service'] != 'twitter') {
                     $displayname = "Microblog-tools" ;
                 }
 
@@ -1942,10 +1935,12 @@ function aktt_request_handler() {
 					wp_die('Oops, please try again.');
 				}
 				
-				update_option('aktt_app_consumer_key', '');
-				update_option('aktt_app_consumer_secret', '');
-				update_option('aktt_oauth_token', '');
-				update_option('aktt_oauth_token_secret', '');
+				update_option('aktt_app_consumer_key', ''); // TODO: this should edit the "ubtools_accts" table
+				update_option('aktt_app_consumer_secret', ''); // TODO: this should edit the "ubtools_accts" table
+				update_option('aktt_oauth_token', ''); // TODO: this should edit the "ubtools_accts" table
+				update_option('aktt_oauth_token_secret', ''); // TODO: this should edit the "ubtools_accts" table
+                // TODO: request_token/secret also needs to be reset in the "ubtools_accts" table
+                
 				wp_redirect(admin_url('tools.php?page=microblog-tools.php&updated=true'));
 				exit;
 			break;
@@ -2163,7 +2158,7 @@ function aktt_options_form() {
 					<div class="ublog">
 						<label for="twitter">Connect to Twitter</label><br />
 						<input type="text" disabled="disabled" value="http://twitter.com" style="width: 160px; float: none;" />
-						<input id="twitter" class="ublog twitter" name="aktt_service" type="submit" value="twitter" />
+						<input id="twitter" class="ublog twitter" name="ubtools_service" type="submit" value="twitter" />
                     </div>
 					<input type="hidden" name="ak_action" value="aktt_oauth_test" class="hidden" style="display: none;" />
 					'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
@@ -2174,7 +2169,7 @@ function aktt_options_form() {
 					<div class="ublog">
 						<label for="identica">Connect to Identica</label><br />                        
 						<input type="text" disabled="disabled" value="http://identi.ca" style="width: 160px; float: none;" />
-						<input id="identica" class="ublog identica" name="aktt_service" type="submit" value="identica" />
+						<input id="identica" class="ublog identica" name="ubtools_service" type="submit" value="identica" />
                     </div>
 					<input type="hidden" name="ak_action" value="aktt_oauth_test" class="hidden" style="display: none;" />
 					'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
@@ -2185,7 +2180,7 @@ function aktt_options_form() {
 					<div class="ublog">
 						<label for="host">StatusNet URL</label><br />
 						<input aria-required="true" type="text" name="host" id="host" style="width: 160px; float: none;" />
-						<input id="statusnet" class="ublog statusnet" name="aktt_service" type="submit" value="statusnet" />
+						<input id="statusnet" class="ublog statusnet" name="ubtools_service" type="submit" value="statusnet" />
 					</div>
 					<input type="hidden" name="ak_action" value="aktt_oauth_test" class="hidden" style="display: none;" />
 					'.wp_nonce_field('aktt_oauth_test', '_wpnonce', true, false).wp_referer_field(false).'
