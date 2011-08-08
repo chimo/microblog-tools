@@ -873,7 +873,7 @@ function aktt_update_tweets() { // TODO: Add argument to only update a single ac
     		}
     	}
     	aktt_reset_tweet_checking($hash, time(), $account); // TODO
-        do_action('aktz_tweets');
+        do_action('aktt_update_tweets');
     }
 }
 
