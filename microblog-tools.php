@@ -79,25 +79,16 @@ function aktt_install() {
 			if (!empty($wpdb->collate)) {
 				$charset_collate .= " COLLATE $wpdb->collate";
 			}
-		}
-		$result = $wpdb->query("
-			CREATE TABLE `$wpdb->aktt` (
-			`id` INT( 11 ) NOT NULL AUTO_INCREMENT PRIMARY KEY ,
-			`tw_id` VARCHAR( 255 ) NOT NULL ,
-			`tw_text` VARCHAR( 255 ) NOT NULL ,
-			`tw_reply_username` VARCHAR( 255 ) DEFAULT NULL ,
-			`tw_reply_tweet` VARCHAR( 255 ) DEFAULT NULL ,
-			`tw_created_at` DATETIME NOT NULL ,
-			`modified` DATETIME NOT NULL ,
-			UNIQUE KEY `tw_id_unique` ( `tw_id` )
-			) $charset_collate
-		");
+        }
         // TODO: revise column types. longtext was used since wp_options table uses longtext for everything
         // TODO: It would be nice to create tables based on acct_options[] and options[] so we don't have to remember to match the two
         $result = $wpdb->query("
             CREATE TABLE `" . $wpdb->aktt . "_accts` (
             `uid` BIGINT( 20 ) UNSIGNED NOT NULL PRIMARY KEY ,
             `twitter_username` longtext NOT NULL ,
+            `last_tweet_download` longtext ,
+            `doing_tweet_download` longtext ,
+            `update_hash` longtext ,
             `app_consumer_key` longtext NOT NULL ,
             `app_consumer_secret` longtext NOT NULL ,
             `request_token` longtext NOT NULL ,
@@ -125,13 +116,27 @@ function aktt_install() {
             UNIQUE KEY `ubt_id_unique` ( `uid` )
             ) $charset_collate
         ");
+		$result = $wpdb->query("
+			CREATE TABLE `$wpdb->aktt` (
+			`id` INT( 11 ) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            `uid` BIGINT( 20 ) UNSIGNED NOT NULL ,
+			`tw_id` VARCHAR( 255 ) NOT NULL ,
+			`tw_text` VARCHAR( 255 ) NOT NULL ,
+			`tw_reply_username` VARCHAR( 255 ) DEFAULT NULL ,
+			`tw_reply_tweet` VARCHAR( 255 ) DEFAULT NULL ,
+			`tw_created_at` DATETIME NOT NULL ,
+            `modified` DATETIME NOT NULL ,
+            UNIQUE KEY `tw_id_unique` ( `tw_id`, `uid` ) ,
+            FOREIGN KEY(uid) REFERENCES " . $wpdb->aktt . "_accts(uid)
+			) $charset_collate
+		");
 
 	}
 	foreach ($aktt_install->options as $option) {
 		add_option('aktt_'.$option, $aktt_install->$option);
 	}
     // TODO: this should be account-specific
-	add_option('aktt_update_hash', '');
+	// add_option('aktt_update_hash', '');
 }
 register_activation_hook(AKTT_FILE, 'aktt_install');
 
@@ -139,6 +144,9 @@ class twitter_tools {
 	function twitter_tools() {
         $this->acct_options = array(
             'twitter_username'      // microblog username
+            , 'last_tweet_download' // last time we downloaded notices from service
+            , 'doing_tweet_download'// whether we are currently downloading notices from service
+            , 'update_hash'         // hash of the last downloaded notices
             , 'service'             // microblog service (twitter, identica, statusnet)
             , 'host'                // microblog host (twitter.com, identi.ca, etc)
             , 'host_api'            // microblog api (api.twitter.com/1/, identi.ca/api, etc)
@@ -236,7 +244,6 @@ class twitter_tools {
 		$this->last_tweet_download = '';
 		$this->doing_tweet_download = '0';
 		$this->doing_digest_post = '0';
-//		$this->oauth_hash = '';         # account
 		$this->version = AKTT_VERSION;
 	}
 	
@@ -367,7 +374,6 @@ class twitter_tools {
             $arr[$option] = $this->$option;
         }
         
-        // 
         $userid = wp_get_current_user()->ID;
         $arr['uid'] = $userid;
 
@@ -684,7 +690,7 @@ class aktt_tweet {
 		return (substr($this->tw_text, 0, 1) == '@');
 	}
 	
-	function add() {
+	function add($acct) {
 		global $wpdb, $aktt;
 		$wpdb->query("
 			INSERT
@@ -694,7 +700,8 @@ class aktt_tweet {
 			, tw_reply_username
 			, tw_reply_tweet
 			, tw_created_at
-			, modified
+            , modified
+            , uid
 			)
 			VALUES
 			( '".$wpdb->escape($this->tw_id)."'
@@ -702,19 +709,28 @@ class aktt_tweet {
 			, '".$wpdb->escape($this->tw_reply_username)."'
 			, '".$wpdb->escape($this->tw_reply_tweet)."'
 			, '".date('Y-m-d H:i:s', $this->tw_created_at)."'
-			, NOW()
+            , NOW()
+            , '".$acct['uid']."'
 			)
 		");
-		do_action('aktt_add_tweet', $this);
-		if ($aktt->create_blog_posts == '1' && !$this->tweet_post_exists() && !$this->tweet_is_post_notification() && (!$aktt->exclude_reply_tweets || !$this->tweet_is_reply())) {
+        do_action('aktt_add_tweet', $this);
+
+        // FIXME:   Creation of blog post on new tweets doesn't work right now
+        //          $aktt is not a valid user on anonymous visits.
+/*		if ($aktt->create_blog_posts == '1' && !$this->tweet_post_exists() && !$this->tweet_is_post_notification() && (!$aktt->exclude_reply_tweets || !$this->tweet_is_reply())) {
 			$aktt->do_tweet_post($this);
-		}
+        } */
 	}
 }
 
-function aktt_api_status_show_url($id) {
-	global $aktt; // Chimo: added
-	return str_replace('###ID###', $id, $aktt->api_status_show); // Chimo: changed constant to obj varible
+function aktt_api_status_show_url($id, $acct = NULL) {
+    global $aktt; // Chimo: added
+    if($acct == NULL) {
+    	return str_replace('###ID###', $id, $aktt->api_status_show); // Chimo: changed constant to obj varible
+    }
+    else {
+    	return str_replace('###ID###', $id, $acct['api_status_show']);
+    }
 }
 
 function aktt_profile_url($username) {
@@ -750,14 +766,22 @@ function aktt_status_url($username, $status) {
 		, $aktt->status_url // Chimo: changed constant to obj variable
 	);
 }
-function aktt_oauth_test() {
+function aktt_oauth_test($acct = NULL) {
 	global $aktt, $wpdb;
 
-    // Chimo start
-    $userid = wp_get_current_user()->ID;
-    $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = $userid");
-	return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash() == $oauth_hash[0]) );
-    // Chimo end
+    // TODO: clean redundant code
+    // If no account is specified, use current logged-in user
+    if($acct == NULL) {
+        $userid = wp_get_current_user()->ID;
+        $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = $userid");
+        return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash() == $oauth_hash[0]) );
+    }
+    else {
+        $userid = $acct['uid'];
+        $oauth_hash = $wpdb->get_col("SELECT oauth_hash FROM " . $wpdb->prefix . "ubtools_accts WHERE uid = $userid");
+        return ( !empty($oauth_hash) && (aktt_oauth_credentials_to_hash($acct) == $oauth_hash[0]) );
+    }
+
 }
 
 function aktt_ping_digests() {
@@ -765,91 +789,112 @@ function aktt_ping_digests() {
 	$aktt->ping_digests();
 }
 
-function aktt_update_tweets() {
-	global $aktt;
-	
-	// let the last update run for 10 minutes
-	if (time() - intval(get_option('aktt_doing_tweet_download')) < $aktt->tweet_download_interval()) {
-		return;
-	}
-	// wait 10 min between downloads
-	if (time() - intval(get_option('aktt_last_tweet_download')) < $aktt->tweet_download_interval()) {
-		return;
-	}
-	update_option('aktt_doing_tweet_download', time());
-	global $wpdb, $aktt;
-	if (empty($aktt->twitter_username)) {
-		update_option('aktt_doing_tweet_download', '0');
-		return;
-	}
+function aktt_update_tweets() { // TODO: Add argument to only update a single account (for when the "update tweets" button is pressed in the configs)
+	global $aktt, $wpdb;
 
-	if ( aktt_oauth_test() && ($connection = aktt_oauth_connection()) ) {
-		$data = $connection->get($aktt->api_user_timeline); // Chimo: changed constant to obj variable
-		if ($connection->http_code != '200') {
-			update_option('aktt_doing_tweet_download', '0');
-			return;
-		}
-	}
-	else {
-		return;
-	}
-	// hash results to see if they're any different than the last update, if so, return
+    // Get list of all accounts.
+    // TODO:    We should probably use a LIMIT of some kind here.
+    //          This would mean not all accounts would get updated at once
+    //          so we'll need to ORDER BY last_tweet_download to update the oldest accounts first
+    $results = $wpdb->get_results("SELECT * FROM " . $wpdb->aktt . "_accts", ARRAY_A); // TODO: only fetch accounts with last_tweet_download older than 10mins (WHERE)
 
-	$hash = md5($data);
-	if ($hash == get_option('aktt_update_hash')) { // TODO: this should be taken from the ubtools_accts table.
-		update_option('aktt_last_tweet_download', time());
-		update_option('aktt_doing_tweet_download', '0');
-		do_action('aktt_update_tweets');
-		return;
-	}
-	$data = preg_replace('/"id":(\d+)/', '"id":"$1"', $data); // hack for json_decode on 32-bit PHP
-	$tweets = json_decode($data);
+    foreach($results as $account) {
+        // let the last update run for 10 minutes
+    	if (time() - intval($account['doing_tweet_download']) < $aktt->tweet_download_interval()) { // TODO: This can be handled with the query above
+    		continue;
+    	}
 
-	if (is_array($tweets) && count($tweets)) {
-		$tweet_ids = array();
-		foreach ($tweets as $tweet) {
-			$tweet_ids[] = $wpdb->escape($tweet->id);
-		}
-		$existing_ids = $wpdb->get_col("
-			SELECT tw_id
-			FROM $wpdb->aktt
-			WHERE tw_id
-			IN ('".implode("', '", $tweet_ids)."')
-		");
-		foreach ($tweets as $tw_data) {
-			if (!$existing_ids || !in_array($tw_data->id, $existing_ids)) {
-				$tweet = new aktt_tweet(
-					$tw_data->id
-					, $tw_data->text
-				);
-				$tweet->tw_created_at = $tweet->twdate_to_time($tw_data->created_at);
-				if (!empty($tw_data->in_reply_to_status_id)) {
-					$tweet->tw_reply_tweet = $tw_data->in_reply_to_status_id;
-					$url = aktt_api_status_show_url($tw_data->in_reply_to_status_id);
-					$data = $connection->get($url);
-					if (strcmp($connection->http_code, '200') == 0) {
-						$status = json_decode($data);
-						$tweet->tw_reply_username = $status->user->screen_name;
-					}
-				}
-				// make sure we haven't downloaded someone else's tweets - happens sometimes due to Twitter hiccups
-				if (strtolower($tw_data->user->screen_name) == strtolower($aktt->twitter_username)) {
-					$tweet->add();
-				}
-			}
-		}
-	}
-	aktt_reset_tweet_checking($hash, time());
-	do_action('aktt_update_tweets');
+        // wait 10 min between downloads
+    	if (time() - intval($account['last_tweet_download']) < $aktt->tweet_download_interval()) { // TODO: This can be handled with the query above
+    		continue;
+        }
+
+        $account['doing_tweet_download'] = time();
+        $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
+
+        if ( aktt_oauth_test($account) && ($connection = aktt_oauth_connection($account)) ) {
+    		$data = $connection->get($account['api_user_timeline']); // Chimo: changed constant to obj variable
+            if ($connection->http_code != '200') {
+                $account['doing_tweet_download'] = 0;
+                $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
+    			continue;
+    		}
+    	}
+        else {
+	    	continue;
+    	}
+
+        // hash results to see if they're any different than the last update, if so, return
+    	$hash = md5($data);
+        if ($hash == $account['update_hash']) {
+            $account['last_tweet_download'] = time();
+            $account['doing_tweet_download'] = 0;
+            $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
+    		do_action('aktt_update_tweets');
+    		continue;
+    	}
+    	$data = preg_replace('/"id":(\d+)/', '"id":"$1"', $data); // hack for json_decode on 32-bit PHP
+    	$tweets = json_decode($data);
+       
+        if(is_array($tweets) && count($tweets)) {
+    		$tweet_ids = array();
+    		foreach ($tweets as $tweet) {
+    			$tweet_ids[] = $wpdb->escape($tweet->id);
+    		}
+    		$existing_ids = $wpdb->get_col("
+    			SELECT tw_id
+    			FROM $wpdb->aktt
+                WHERE uid = " . $account['uid'] . "
+                AND tw_id
+    			IN ('".implode("', '", $tweet_ids)."')
+    		");
+    		foreach ($tweets as $tw_data) {
+    			if (!$existing_ids || !in_array($tw_data->id, $existing_ids)) {
+    				$tweet = new aktt_tweet(
+    					$tw_data->id
+    					, $tw_data->text
+    				);
+    				$tweet->tw_created_at = $tweet->twdate_to_time($tw_data->created_at);
+    				if (!empty($tw_data->in_reply_to_status_id)) {
+    					$tweet->tw_reply_tweet = $tw_data->in_reply_to_status_id;
+    					$url = aktt_api_status_show_url($tw_data->in_reply_to_status_id);
+    					$data = $connection->get($url);
+    					if (strcmp($connection->http_code, '200') == 0) {
+    						$status = json_decode($data);
+    						$tweet->tw_reply_username = $status->user->screen_name;
+    					}
+    				}
+    				// make sure we haven't downloaded someone else's tweets - happens sometimes due to Twitter hiccups
+    				if (strtolower($tw_data->user->screen_name) == strtolower($aktt->twitter_username)) {
+    					$tweet->add($account);
+    				}
+    			}
+    		}
+    	}
+    	aktt_reset_tweet_checking($hash, time(), $account); // TODO
+        do_action('aktt_update_tweets');
+    }
 }
 
-function aktt_reset_tweet_checking($hash = '', $time = 0) {
-	if (!current_user_can('manage_options')) {
+function aktt_reset_tweet_checking($hash = '', $time = 0, $acct = NULL) {
+/*	if (!current_user_can('manage_options')) {
 		return;
 	}
 	update_option('aktt_update_hash', $hash); // TODO: should store in ubtools_accts table
 	update_option('aktt_last_tweet_download', $time); 
-	update_option('aktt_doing_tweet_download', '0'); 
+    update_option('aktt_doing_tweet_download', '0'); 
+ */
+
+    if($acct == NULL)
+        return;
+
+    global $wpdb;
+
+    $acct['update_hash'] = $hash;
+    $acct['last_tweet_download'] = $time;
+    $acct['doing_tweet_download'] = 0;
+
+    $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
 }
 
 function aktt_reset_digests() {
@@ -1615,24 +1660,40 @@ input.statusnet {background-image: url(<?php echo CH_PDIR . 'images/statusnet.pn
 }
 add_action('init', 'aktt_resources', 1);
 
-function aktt_oauth_connection() {
+function aktt_oauth_connection($acct = NULL) {
 	global $aktt;
 	
     require_once('twitteroauth.php');
-    $connection = new TwitterOAuth(
-		$aktt->host_api,
-        $aktt->app_consumer_key, 
-        $aktt->app_consumer_secret,
-        $aktt->oauth_token,
-        $aktt->oauth_token_secret
-    );
+    if($acct == NULL) {
+        $connection = new TwitterOAuth(
+    		$aktt->host_api,
+            $aktt->app_consumer_key, 
+            $aktt->app_consumer_secret,
+            $aktt->oauth_token,
+            $aktt->oauth_token_secret
+        );
+    }
+    else {
+        $connection = new TwitterOAuth(
+    		$acct['host_api'],
+            $acct['app_consumer_key'], 
+            $acct['app_consumer_secret'],
+            $acct['oauth_token'],
+            $acct['oauth_token_secret']
+        );
+    }
+
     $connection->useragent = 'Micro-blog Tools http://github.com/chimo/microblog-tools';
     return $connection;
 }
 
-function aktt_oauth_credentials_to_hash() {
-	global $aktt;
-	$hash = md5($aktt->app_consumer_key.$aktt->app_consumer_secret.$aktt->oauth_token.$aktt->oauth_token_secret);
+function aktt_oauth_credentials_to_hash($acct = NULL) {
+    global $aktt;
+    if($acct == NULL)
+    	$hash = md5($aktt->app_consumer_key.$aktt->app_consumer_secret.$aktt->oauth_token.$aktt->oauth_token_secret);
+    else
+    	$hash = md5($acct['app_consumer_key'].$acct['app_consumer_secret'].$acct['oauth_token'].$acct['oauth_token_secret']);
+
 	return $hash;		
 }
 
@@ -1668,7 +1729,6 @@ function aktt_request_handler() {
                 // TODO: Detect and handle error messages from the server (ex: Invalid token/timestamp, etc.)
 				$ch_tok = $connection->getAccessToken($aktt->access_url, $_GET['oauth_verifier']);
                 if(empty($ch_tok['oauth_token']) || empty($ch_tok['oauth_token_secret'])) {
-error_log("aktt: " . print_r($aktt, true));
                     wp_redirect(admin_url('tools.php?page=microblog-tools.php&errAccTok=true'));
 					exit;
 				}
