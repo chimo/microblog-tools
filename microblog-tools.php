@@ -62,6 +62,11 @@ else if (is_file(trailingslashit(ABSPATH.PLUGINDIR).'microblog-tools/microblog-t
 	define('AKTT_FILE', trailingslashit(ABSPATH.PLUGINDIR).'microblog-tools/microblog-tools.php');
 }
 
+/**
+ * Called when admin "activates" the plugin
+ *
+ * Creates SQL tables if they don't exist. Adds options to wp_options table.
+ */
 function aktt_install() {
 	global $wpdb;
 	
@@ -70,7 +75,7 @@ function aktt_install() {
 	$tables = $wpdb->get_col("
 		SHOW TABLES LIKE '$wpdb->aktt'
 	");
-	if (!in_array($wpdb->aktt, $tables)) {
+	if (!in_array($wpdb->aktt, $tables)) { // TODO: check for "$wpdb->aktt . '_accts'" too
 		$charset_collate = '';
 		if ( version_compare(mysql_get_server_info(), '4.1.0', '>=') ) {
 			if (!empty($wpdb->charset)) {
@@ -134,12 +139,13 @@ function aktt_install() {
 	foreach ($aktt_install->options as $option) {
 		add_option('aktt_'.$option, $aktt_install->$option);
 	}
-    // TODO: this should be account-specific
-	// add_option('aktt_update_hash', '');
 }
 register_activation_hook(AKTT_FILE, 'aktt_install');
 
 class twitter_tools {
+    /**
+     * Constructor 
+     */
 	function twitter_tools() {
         $this->acct_options = array(
             'twitter_username'      // microblog username
@@ -187,8 +193,8 @@ class twitter_tools {
 			, 'tweet_from_sidebar'
 			, 'give_tt_credit'
 			, 'exclude_reply_tweets'
-			, 'last_tweet_download'  // TODO: do we still need this here?
-			, 'doing_tweet_download' // TODO: do we still need this here?
+//			, 'last_tweet_download'  // TODO: do we still need this here?
+//			, 'doing_tweet_download' // TODO: do we still need this here?
 			, 'doing_digest_post'
 			, 'install_date'
 			, 'js_lib'
@@ -246,6 +252,11 @@ class twitter_tools {
 		$this->version = AKTT_VERSION;
 	}
 	
+    /**
+     * Upgrades SQL schema from Twitter Tools v1.2 to Twitter Tools v2.1
+     *
+     * This is not being called at the moment since Micro-blog Tools does not support upgrades from the original Twitter Tools plugin
+     */
 	function upgrade() {
 		global $wpdb;
 		$wpdb->aktt = $wpdb->prefix.'ubtools';
@@ -297,7 +308,12 @@ class twitter_tools {
 			");
 		}
 	}
-	
+
+    /**
+     * Upgrades tweet prefix from Twitter Tools v1.2 to Twitter Tools v2.1
+     *
+     * This is not being called at the moment since Micro-blog Tools does not support upgrades from the original Twitter Tools plugin
+     */	
 	function upgrade_default_tweet_prefix() {
 		$prefix = get_option('aktt_tweet_prefix'); // FIXME: This shouldn't be taken from wp_options (get_option())
 		if (empty($prefix)) {
@@ -306,7 +322,9 @@ class twitter_tools {
 		}
 	}
 
-    // fetch object props from wp option storage
+    /**
+     * Queries "wp_options" and "$wpdb->aktt . 'ubtools_accts'" SQL tables and builds twitter_tools objects with relevant data
+     */
 	function get_settings() {
 	    global $wpdb;
 
@@ -328,7 +346,9 @@ class twitter_tools {
         $this->tweet_format = $this->tweet_prefix.': %s %s'; // TODO: What is this?
 	}
 	
-	// puts post fields into object props
+    /**
+     * Takes POST data builds twitter_tools objects with relevant data
+     */
 	function populate_settings() {
 		foreach ($this->options as $option) {
 			$value = stripslashes($_POST['aktt_'.$option]);
@@ -344,8 +364,10 @@ class twitter_tools {
 			}
 		}
 	}
-	
-	// puts object props into wp option storage
+
+    /**
+     * Takes twitter_tools object and fills "wp_options" and "$wpdb->aktt . 'ubtools_accts'" SQL tables with relevant data
+     */	
 	function update_settings() {
     	global $wpdb;
 
@@ -385,18 +407,25 @@ class twitter_tools {
             $wpdb->update($tbl, $arr, array('uid' => $userid));
         }
 	}
-	
-	// figure out when the next weekly and daily digests will be
+    
+	/**
+	 * Stores when the next weekly and daily digests will be
+     */
 	function initiate_digests() {
 		$next = ($this->create_digest) ? $this->calculate_next_daily_digest() : null;
 		$this->next_daily_digest = $next;
-		update_option('aktt_next_daily_digest', $next);
+		update_option('aktt_next_daily_digest', $next); // TODO: acct-specific
 		
 		$next = ($this->create_digest_weekly) ? $this->calculate_next_weekly_digest() : null;
 		$this->next_weekly_digest = $next;
-		update_option('aktt_next_weekly_digest', $next);
+		update_option('aktt_next_weekly_digest', $next); // TODO: acct-specific
 	}
 	
+    /**
+     * Calculates when the next daily digest will be
+     *
+     * @returns a timestamp on success, FALSE otherwise.
+     */
 	function calculate_next_daily_digest() {
 		$optionDate = strtotime($this->digest_daily_time);
 		$hour_offset = date("G", $optionDate);
@@ -410,7 +439,12 @@ class twitter_tools {
 		}
 		return $next;
 	}
-	
+
+    /**
+     * Calculates when the next weekly digest will be
+     *
+     * @returns int (timestamp) on success, FALSE otherwise.
+     */	
 	function calculate_next_weekly_digest() {
 		$optionDate = strtotime($this->digest_weekly_time);
 		$hour_offset = date("G", $optionDate);
@@ -428,7 +462,10 @@ class twitter_tools {
 		}
 		return $next;
 	}
-	
+
+    /**
+     * Initiates the weekly and/or daily digests when necessary
+     */		
 	function ping_digests() {
 		// still busy
 		if (get_option('aktt_doing_digest_post') == '1') {
@@ -443,7 +480,15 @@ class twitter_tools {
 		}
 		return;
 	}
-	
+
+    /**
+     * Initiates a digest
+     *
+     * @param nextDateField     string containing which SQL column to update ('aktt_next_daily_digest' or 'aktt_next_weekly_digest') for "next" timestamp
+     * @param lastDateField     string containing which SQL column to update ('aktt_last_digest_post' or 'aktt_last_digest_post_weekly') for "last" timestamp
+     * @param title             string that will be used as the title of the blog post.
+     * @param defaultDuration   int containing at which intervals (in seconds) this specific digest should be updated (86400 for 'daily', 604800 for 'weekly')
+     */	
 	function ping_digest($nextDateField, $lastDateField, $title, $defaultDuration) {
 
 		$next = get_option($nextDateField);
@@ -463,7 +508,14 @@ class twitter_tools {
 			}
 		}
 	}
-	
+
+    /**
+     * Ensures the date given is valid timestamp (if given a string, uses strtotime() to attempt convertion to int)
+     *
+     * @param in        int containing the timestamp we were given
+     * @param default   int containing the default timestamp to fall back on if "in" was invalid
+     * @returns         int (timestamp)
+     */		
 	function validateDate($in, $default = 0) {
 		if (!is_numeric($in)) {
 			// try to convert what they gave us into a date
@@ -477,6 +529,13 @@ class twitter_tools {
 		return $in;
 	}
 
+    /**
+     * Creates a new blog post containing a daily or weekly digest of 'tweets'
+     *
+     * @param start     int (timestamp) of oldest tweets that should be in this digest
+     * @param end       int (timestamp) of youngest tweets that should be in this digest
+     * @param title     string that will be used as the title of the blog post.
+     */
 	function do_digest_post($start, $end, $title) {
 		
 		if (!$start || !$end) return false;
@@ -557,10 +616,21 @@ class twitter_tools {
 		return true;
 	}
 	
+    /**
+     * Returns the interval (in seconds) at which we should check the service for new tweets (default is 600; every 10mins)
+     * 
+     * @returns int containing the interval (in seconds) at which we should check the service for new tweets
+    */ 
 	function tweet_download_interval() {
 		return 600;
 	}
 	
+    /**
+     * Posts a tweet/notice to the service
+     * 
+     * @param tweet     aktt_tweet object representing a tweet
+     * @returns         true on success, false on oauth/connection failure, null on empty "tweet", "tweet->tw_text" or if "tweet == false"
+     */
 	function do_tweet($tweet = '') {		
 		global $aktt; // Chimo: added
 		if (empty($tweet) || empty($tweet->tw_text)) {
@@ -580,13 +650,18 @@ class twitter_tools {
 				)
 			);
 			if (strcmp($connection->http_code, '200') == 0) {
-				update_option('aktt_last_tweet_download', strtotime('-28 minutes'));
+				update_option('aktt_last_tweet_download', strtotime('-28 minutes')); // TODO: acct-specific
 				return true;
 			}
 		}
 		return false;
 	}
 	
+    /**
+     * Pushes a blog post to service
+     * 
+     * @param post_id   int containing the blog post ID to be pushed
+     */    
 	function do_blog_post_tweet($post_id = 0) {
 // this is only called on the publish_post hook
 		if ($this->notify_twitter == '0'
@@ -615,7 +690,12 @@ class twitter_tools {
 		$this->do_tweet($tweet);
 		add_post_meta($post_id, 'aktt_tweeted', '1', true);
 	}
-	
+
+    /**
+     * Creates a blog post from tweet
+     * 
+     * @param tweet   aktt_tweet object representing the tweet to publish as a blog post
+     */  	
 	function do_tweet_post($tweet) {
 		global $wpdb;
 		remove_action('publish_post', 'aktt_notify_twitter', 99);
@@ -639,6 +719,11 @@ class twitter_tools {
 }
 
 class aktt_tweet {
+    /**
+     * Constructor
+     * 
+     * @param
+     */
 	function aktt_tweet(
 		$tw_id = ''
 		, $tw_text = ''
@@ -791,23 +876,20 @@ function aktt_ping_digests() {
 function aktt_update_tweets() { // TODO: Add argument to only update a single account (for when the "update tweets" button is pressed in the configs)
 	global $aktt, $wpdb;
 
+    $time = time();
+    
     // Get list of all accounts.
     // TODO:    We should probably use a LIMIT of some kind here.
     //          This would mean not all accounts would get updated at once
     //          so we'll need to ORDER BY last_tweet_download to update the oldest accounts first
-    $results = $wpdb->get_results("SELECT * FROM " . $wpdb->aktt . "_accts", ARRAY_A); // TODO: only fetch accounts with last_tweet_download older than 10mins (WHERE)
+    $results = $wpdb->get_results("
+        SELECT * 
+        FROM " . $wpdb->aktt . "_accts 
+        WHERE ($time - doing_tweet_download) > " . $aktt->tweet_download_interval() . " 
+        AND ($time - last_tweet_download) > " . $aktt->tweet_download_interval(), ARRAY_A
+    );
 
     foreach($results as $account) {
-        // let the last update run for 10 minutes
-    	if (time() - intval($account['doing_tweet_download']) < $aktt->tweet_download_interval()) { // TODO: This can be handled with the query above
-    		continue;
-    	}
-
-        // wait 10 min between downloads
-    	if (time() - intval($account['last_tweet_download']) < $aktt->tweet_download_interval()) { // TODO: This can be handled with the query above
-    		continue;
-        }
-
         $account['doing_tweet_download'] = time();
         $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
 
@@ -1153,10 +1235,10 @@ function aktt_init() {
 	$wpdb->aktt = $wpdb->prefix.'ubtools';
 	$aktt = new twitter_tools;
 	$aktt->get_settings();
-//	if (($aktt->last_tweet_download + $aktt->tweet_download_interval()) < time()) {
-		add_action('shutdown', 'aktt_update_tweets');
-		add_action('shutdown', 'aktt_ping_digests');
-//	}
+    
+    add_action('shutdown', 'aktt_update_tweets');
+    add_action('shutdown', 'aktt_ping_digests');
+
 	if (!is_admin() && $aktt->tweet_from_sidebar && current_user_can('publish_posts')) {
 		switch ($aktt->js_lib) {
 			case 'jquery':
@@ -1935,11 +2017,14 @@ function aktt_request_handler() {
 					wp_die('Oops, please try again.');
 				}
 				
-				update_option('aktt_app_consumer_key', ''); // TODO: this should edit the "ubtools_accts" table
-				update_option('aktt_app_consumer_secret', ''); // TODO: this should edit the "ubtools_accts" table
-				update_option('aktt_oauth_token', ''); // TODO: this should edit the "ubtools_accts" table
-				update_option('aktt_oauth_token_secret', ''); // TODO: this should edit the "ubtools_accts" table
-                // TODO: request_token/secret also needs to be reset in the "ubtools_accts" table
+                $aktt->app_consumer_key = '';
+                $aktt->app_consumer_secret = '';
+                $aktt->request_token = '';
+                $aktt->request_token_secret = '';
+                $aktt->oauth_token = '';
+                $aktt->oauth_token_secret = '';
+                
+                $aktt->update_settings();
                 
 				wp_redirect(admin_url('tools.php?page=microblog-tools.php&updated=true'));
 				exit;
