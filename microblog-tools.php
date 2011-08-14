@@ -1,4 +1,5 @@
 <?php
+
 /*
 Plugin Name: Micro-blog Tools
 Plugin URI: http://github.com/chimo/microblog-tools
@@ -61,6 +62,11 @@ if (is_file(trailingslashit(ABSPATH.PLUGINDIR).'microblog-tools.php')) {
 else if (is_file(trailingslashit(ABSPATH.PLUGINDIR).'microblog-tools/microblog-tools.php')) {
     define('AKTT_FILE', trailingslashit(ABSPATH.PLUGINDIR).'microblog-tools/microblog-tools.php');
 }
+
+/** 
+ * @file microblog-tools.php
+ * Main file
+ */
 
 /**
  * Called when admin "activates" the plugin
@@ -1240,7 +1246,7 @@ function aktt_make_clickable($tweet) {
  * Returns the necessary HTML/JS to include a "Tweet" form on a page.
  *
  * @param type      string that indicates whether the input should be 'text' or 'textarea'
- * @param extra     string containing any other attributes/values for the <form> tag.
+ * @param extra     string containing any other attributes/values for the 'form' tag.
  * @return          string containing the necessary HTML/JS to include a "Tweet" form on a page.
  */
 function aktt_tweet_form($type = 'input', $extra = '') {
@@ -2702,27 +2708,25 @@ if (!function_exists('ak_gmmktime')) {
     }
 }
 
+// based on: http://www.gyford.com/phil/writing/2006/12/02/quick_twitter.php
 /**
-
-based on: http://www.gyford.com/phil/writing/2006/12/02/quick_twitter.php
-
-     * Returns a relative date, eg "4 hrs ago".
-     *
-     * Assumes the passed-in can be parsed by strtotime.
-     * Precision could be one of:
-     *     1    5 hours, 3 minutes, 2 seconds ago (not yet implemented).
-     *     2    5 hours, 3 minutes
-     *     3    5 hours
-     *
-     * This is all a little overkill, but copied from other places I've used it.
-     * Also superfluous, now I've noticed that the Twitter API includes something
-     * similar, but this version is more accurate and less verbose.
-     *
-     * @access private.
-     * @param string date In a format parseable by strtotime().
-     * @param integer precision
-     * @return string
-     */
+ * Returns a relative date, eg "4 hrs ago".
+ *
+ * Assumes the passed-in can be parsed by strtotime.
+ * Precision could be one of:
+ *     1    5 hours, 3 minutes, 2 seconds ago (not yet implemented).
+ *     2    5 hours, 3 minutes
+ *     3    5 hours
+ *
+ * This is all a little overkill, but copied from other places I've used it.
+ * Also superfluous, now I've noticed that the Twitter API includes something
+ * similar, but this version is more accurate and less verbose.
+ *
+ * @access          private.
+ * @param date      string date In a format parseable by strtotime().
+ * @param precision integer precision
+ * @return          string
+ */
 function aktt_relativeTime ($date, $precision=2)
 {
 
