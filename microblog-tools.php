@@ -1064,7 +1064,7 @@ function aktt_reset_tweet_checking($hash = '', $time = 0, $acct = NULL) {
     $acct['last_tweet_download'] = $time;
     $acct['doing_tweet_download'] = 0;
 
-    $wpdb->update($wpdb->aktt . "_accts", $account, array('uid' => $account['uid']));
+    $wpdb->update($wpdb->aktt . "_accts", $acct, array('uid' => $acct['uid']));
 }
 
 /**
